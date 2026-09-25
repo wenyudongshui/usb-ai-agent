@@ -183,6 +183,15 @@ V4.0 is the minimal closed loop — *pure USB + password*. Everything below laye
 - Team sharing (multi-fingerprint multi-role, each with isolated AI config & memory);
 - Guest mode (read-only public AI when unauthenticated).
 
+## References & acknowledgments
+
+This project references and builds on the following open-source project:
+
+- **ClaudeCode-Portable** (a.k.a. **OpenClaude-Portable**)
+  - GitHub repository: <https://github.com/techjarves/ClaudeCode-Portable>
+  - License: MIT
+  - What we take from it: the portable-deployment approach — one-click deployment of the Node runtime into the USB drive's `node\` folder. On top of it, this project adds a self-built privacy shell: encryption, password auth, multi-AI isolation, and exit/unplug cleanup.
+
 ## License
 
-Some design aspects reference the open-source project [ClaudeCode-Portable](https://github.com/techjarves/ClaudeCode-Portable) (MIT). See the LICENSE file in this repository for details.
+The license of this repository is governed by the `LICENSE` file in the repo; the referenced upstream project ClaudeCode-Portable is MIT-licensed.
