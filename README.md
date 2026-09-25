@@ -1,2 +1,104 @@
-# usb-ai-agent
-基于U盘的私有化AI智能体：配置/密钥/人设/记忆加密随盘携带，本机零残留；拔盘自清理，多AI人设与记忆隔离；基于ClaudeCode-Portable，支持DeepSeek/NVIDIA/OpenRouter/Ollama，跨Win/macOS/Linux。Private AI agent on USB: encrypted &amp; portable, zero host residue, hardware-gated, self-cleaning, multi-AI isolated; built on ClaudeCode-Portable, cross-platform.
+# usb-ai-agent · U盘私有化AI智能体
+
+> Private AI agent on USB — encrypted & portable, zero host residue, password-gated.
+> 基于U盘的私有化AI智能体：配置/密钥/人设/记忆加密随盘携带，本机零残留，GUI密码认证。
+
+**纯U盘 + GUI密码版（V4.0）**：无需任何硬件令牌，一只 U 盘 + 一个密码即可运行。
+
+---
+
+## 简介
+
+本项目构建一套**以 U 盘为唯一数据载体**的私有化AI智能体运行系统。全部配置、密钥、人设与记忆数据仅存放于U盘；本地电脑仅作为临时运行载体，数据在内存中运行、不持久化、退出即清理。
+
+- 适合在 **公共 / 临时电脑** 上使用个人AI助手
+- 对话记录、API密钥、人设规则随U盘携带，**不遗留于所用电脑**
+- 多AI（DeepSeek / NVIDIA / OpenRouter / Ollama…）一套U盘随取随用
+
+## 核心特性
+
+- 🛡️ **GUI 密码认证**：登录密码同时承担页面访问控制与数据加密钥匙（替代 ESP32 硬件令牌）
+- 🔐 **AES-256-GCM 加密**：配置 / 密钥 / 人设 / 记忆全部密文落盘；scrypt 口令派生 KEK 保护主密钥
+- 💾 **数据不出盘**：本机零持久化，会话仅驻留内存，退出即释放
+- 🧹 **本机零残留**：`clean.bat` 一键清理 + 拔盘兜底清理 + 下次启动补清理
+- 🧠 **多AI人设与记忆隔离**：每AI独立 `config.enc / prompt.md / memory.enc`
+- 🌐 **多模型接入**：兼容 OpenAI 协议接口，一套机制接入 DeepSeek / NVIDIA / OpenRouter / Ollama 等
+- 🖥️ **自研本地 Web 壳层**：全部页面（登录 / 主界面 / 会话 / 开发者 / 退出）自研可控，零第三方依赖
+
+## 快速开始
+
+1. 准备一只 **U盘**（建议 8GB 以上，NTFS 或 exFAT）
+2. 将便携 **Node.js**（Windows x64 免安装 LTS 版）解压到 `node\`
+3. 双击 `start.bat`，浏览器自动打开 `127.0.0.1:8787`
+4. **首次使用**：设置登录密码 → 添加第一个AI（模型API密钥）→ 开始对话
+5. 使用完毕：点击「保存并退出 / 不保存退出」→ 运行 `clean.bat` → 拔出U盘
+
+> 提示：正常运行无需管理员权限；建议将U盘程序目录加入杀软排除项。
+
+## 目录结构
+
+```text
+U盘根目录/
+├── start.bat            # 双击启动
+├── clean.bat            # 一键清理本机残留
+├── README.txt           # 使用说明与使用者须知
+├── app/                 # 自研壳层（Node.js）
+│   ├── server.js        # 本地 Web 服务器（路由 / 静态 / 会话守卫）
+│   ├── modules/         # auth / crypto / config / ai / memory / cleanup / usb
+│   └── public/          # 前端页面（login / main / dev / exit）
+├── node/                # 便携 Node 运行时
+├── configs/ai_001/      # 各AI独立目录（可多份）
+│   ├── config.enc       # 加密接口配置（API地址 / 模型 / 密钥）
+│   ├── prompt.md        # 人设与技能规则（明文可编辑）
+│   └── memory.enc       # 加密记忆库
+├── keys/                # 口令加密主密钥 / cache_path / unclean 标记
+└── workspace/           # 工作文件默认输出目录
+```
+
+## 安全模型
+
+```text
+GUI密码 ──scrypt(N=2^15,r=8,p=1)──▶ KEK ──解密──▶ MasterKey ──AES-256-GCM──▶ config.enc / memory.enc
+```
+
+- 无密码无法解开主密钥 → **防整盘复制**、**防单文件读取** 均由密码承担
+- 错误密码连续 5 次 → 登录锁定 30 秒，防爆破
+- 会话 token 只存内存，10 分钟无操作过期，退出即销毁
+- 三档清理：正常退出全量清理 → 拔盘尽力清理 → 下次启动补清理
+
+**安全边界（不防护）：** 专业取证环境与受监控电脑；第三方API中转服务对对话内容的可见性；键盘记录器等恶意软件在运行期间窃取已解密内容。
+
+## 技术栈
+
+| 类别 | 选型 |
+|---|---|
+| 运行时 | 便携 Node.js（LTS） |
+| 后端 | Node 原生模块（http / crypto / fs / fetch），零第三方依赖 |
+| GUI | 自研本地 Web 页面 + 127.0.0.1 服务器 |
+| 加密 | AES-256-GCM（node:crypto）+ scrypt 口令派生 |
+| AI 接入 | 兼容 OpenAI 协议 `/chat/completions` |
+| 平台 | Windows 10 / 11（Node 跨 Win / macOS / Linux） |
+
+## 开发计划
+
+| 阶段 | 内容 | 工作量 |
+|---|---|---|
+| 一 | 工程骨架与登录认证 | 0.5~1 天 |
+| 二 | 加密与配置存储 | 0.5~1 天 |
+| 三 | 多AI与会话聊天 | 1~1.5 天 |
+| 四 | 记忆与开发者模式 | 1~1.5 天 |
+| 五 | 清理、拔盘兜底与打磨 | 约 1 天 |
+
+> 完整实现步骤见《U盘私有化AI智能体项目计划书（V4.0）》。
+
+## 未来扩展
+
+- ESP32 硬件令牌 / 指纹（在密码之上叠加可选硬件认证因子）
+- 硬件安全芯片（SE）、TPM 联动
+- AI 技能插件系统、记忆向量检索、智能路由
+- 语音交互、状态屏等硬件扩展
+
+## 文档
+
+- 《U盘私有化AI智能体项目计划书（V3.0）》
+- 《U盘私有化AI智能体项目计划书（V4.0）》—— 纯U盘 + 密码版
