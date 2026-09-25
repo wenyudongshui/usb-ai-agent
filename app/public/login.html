@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>USB AI Agent · 登录</title>
+<style>
+  body { font-family: 'Microsoft YaHei', sans-serif; background:#f4f6fb; display:flex;
+         justify-content:center; align-items:center; height:100vh; margin:0; }
+  .card { background:#fff; padding:40px; border-radius:12px; box-shadow:0 4px 24px rgba(0,0,0,.08);
+          width:320px; text-align:center; }
+  h1 { font-size:18px; margin-bottom:6px; color:#1f2937; }
+  p.sub { color:#6b7280; font-size:13px; margin-bottom:24px; }
+  input { width:100%; box-sizing:border-box; padding:10px 12px; margin-bottom:14px; border:1px solid #d1d5db;
+          border-radius:8px; font-size:14px; }
+  button { width:100%; padding:10px; background:#2e74b5; color:#fff; border:none; border-radius:8px;
+           font-size:14px; cursor:pointer; }
+  button:hover { background:#25639c; }
+  #msg { margin-top:14px; font-size:13px; color:#dc2626; min-height:18px; }
+</style>
+</head>
+<body>
+  <div class="card">
+    <h1>🔒 USB AI Agent</h1>
+    <p class="sub" id="subtitle">输入密码登录</p>
+    <input type="password" id="pw" placeholder="密码" autocomplete="current-password">
+    <button id="btn">登 录</button>
+    <div id="msg"></div>
+  </div>
+<script>
+  // Phase 1 skeleton: wired-up login flow comes with auth.js milestone.
+  // For now the page just calls the still-placeholder /api/login endpoint.
+  const btn = document.getElementById('btn');
+  const pw  = document.getElementById('pw');
+  const msg = document.getElementById('msg');
+  btn.addEventListener('click', async () => {
+    msg.textContent = '';
+    try {
+      const r = await fetch('/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: pw.value }),
+      });
+      const j = await r.json();
+      if (r.ok) { msg.style.color = '#16a34a'; msg.textContent = '登录成功（骨架版本，待接入 auth 模块后跳转）'; }
+      else msg.textContent = j.error || '登录失败';
+    } catch (e) { msg.textContent = '网络错误'; }
+  });
+  pw.addEventListener('keydown', (e) => { if (e.key === 'Enter') btn.click(); });
+</script>
+</body>
+</html>
