@@ -183,15 +183,6 @@ V4.0 为「纯U盘 + 密码」的最小完整闭环。以下扩展均以 V4.0 �
 - 团队共用（多指纹多角色，各自隔离的AI配置与记忆）；
 - 访客模式（无认证时仅开放只读公共AI）。
 
-## 参考与致谢
-
-本项目参考并借鉴了以下开源项目：
-
-- **ClaudeCode-Portable**（又名 **OpenClaude-Portable**）
-  - GitHub 仓库：<https://github.com/techjarves/ClaudeCode-Portable>
-  - 协议：MIT
-  - 借鉴内容：其便携部署思路——一键将 Node 运行时部署到 U 盘 `node\` 目录，本项目在此基础上自研「加密 + 密码认证 + 多AI隔离 + 退出清理」隐私壳。
-
 ## 许可证
 
-本仓库许可证以仓库内 `LICENSE` 文件为准；被引用的上游项目 ClaudeCode-Portable 遵循 MIT 协议。
+本项目部分特性设计参考开源项目 [ClaudeCode-Portable](https://github.com/techjarves/ClaudeCode-Portable)（MIT 协议）。仓库内 LICENSE 以实际文件为准。
