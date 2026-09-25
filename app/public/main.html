@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>USB AI Agent · 主界面</title>
+<style>
+  body { font-family: 'Microsoft YaHei', sans-serif; background:#f4f6fb; margin:0; height:100vh; display:flex; flex-direction:column; }
+  header { background:#1f2937; color:#fff; padding:12px 20px; display:flex; justify-content:space-between; align-items:center; }
+  header h1 { font-size:16px; margin:0; }
+  header button { background:transparent; color:#d1d5db; border:1px solid #4b5563; border-radius:6px; padding:6px 12px; cursor:pointer; }
+  header button:hover { color:#fff; border-color:#9ca3af; }
+  .welcome { padding:20px; color:#374151; line-height:1.8; }
+  .welcome h2 { color:#1f2937; }
+</style>
+</head>
+<body>
+  <header>
+    <h1>🔒 USB AI Agent</h1>
+    <button id="logout">退出登录</button>
+  </header>
+
+  <div class="welcome">
+    <h2>登录成功 ✅</h2>
+    <p>主界面骨架已就绪。阶段三将在这里放置 AI 选择与对话窗口。</p>
+    <p id="info"></p>
+  </div>
+
+<script>
+  // Ensure session is valid (server also guards this page)
+  fetch('/api/session').then(async (r) => {
+    if (!r.ok || !(await r.json()).authed) { window.location.href = '/login.html'; return; }
+    document.getElementById('info').textContent = '会话有效。';
+  }).catch(() => { window.location.href = '/login.html'; });
+
+  document.getElementById('logout').addEventListener('click', async () => {
+    await fetch('/api/logout', { method: 'POST' });
+    window.location.href = '/login.html';
+  });
+</script>
+</body>
+</html>

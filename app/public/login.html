@@ -8,45 +8,95 @@
   body { font-family: 'Microsoft YaHei', sans-serif; background:#f4f6fb; display:flex;
          justify-content:center; align-items:center; height:100vh; margin:0; }
   .card { background:#fff; padding:40px; border-radius:12px; box-shadow:0 4px 24px rgba(0,0,0,.08);
-          width:320px; text-align:center; }
+          width:340px; text-align:center; }
   h1 { font-size:18px; margin-bottom:6px; color:#1f2937; }
-  p.sub { color:#6b7280; font-size:13px; margin-bottom:24px; }
+  p.sub { color:#6b7280; font-size:13px; margin-bottom:20px; }
   input { width:100%; box-sizing:border-box; padding:10px 12px; margin-bottom:14px; border:1px solid #d1d5db;
           border-radius:8px; font-size:14px; }
   button { width:100%; padding:10px; background:#2e74b5; color:#fff; border:none; border-radius:8px;
            font-size:14px; cursor:pointer; }
   button:hover { background:#25639c; }
   #msg { margin-top:14px; font-size:13px; color:#dc2626; min-height:18px; }
+  .hidden { display:none; }
+  ul.rules { text-align:left; color:#6b7280; font-size:12px; margin:0 0 14px; padding-left:18px; }
 </style>
 </head>
 <body>
   <div class="card">
     <h1>🔒 USB AI Agent</h1>
-    <p class="sub" id="subtitle">输入密码登录</p>
-    <input type="password" id="pw" placeholder="密码" autocomplete="current-password">
-    <button id="btn">登 录</button>
-    <div id="msg"></div>
+
+    <!-- 首次设置密码 -->
+    <div id="setup">
+      <p class="sub">首次使用 · 设置初始密码</p>
+      <input type="password" id="pw1" placeholder="新密码（8位以上，含大小写与数字）">
+      <input type="password" id="pw2" placeholder="确认密码">
+      <ul class="rules">
+        <li>至少 8 位</li>
+        <li>包含大写字母、小写字母和数字</li>
+      </ul>
+      <button id="btnSetup">设置密码并进入</button>
+      <div id="msgSetup"></div>
+    </div>
+
+    <!-- 登录 -->
+    <div id="login" class="hidden">
+      <p class="sub">输入密码登录</p>
+      <input type="password" id="pw" placeholder="密码" autocomplete="current-password">
+      <button id="btnLogin">登 录</button>
+      <div id="msgLogin"></div>
+    </div>
   </div>
+
 <script>
-  // Phase 1 skeleton: wired-up login flow comes with auth.js milestone.
-  // For now the page just calls the still-placeholder /api/login endpoint.
-  const btn = document.getElementById('btn');
-  const pw  = document.getElementById('pw');
-  const msg = document.getElementById('msg');
-  btn.addEventListener('click', async () => {
-    msg.textContent = '';
+  const $ = (id) => document.getElementById(id);
+
+  function showMsg(el, text, ok) {
+    el.style.color = ok ? '#16a34a' : '#dc2626';
+    el.textContent = text || '';
+  }
+
+  async function postJSON(url, body) {
+    const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    return { r, j: await r.json().catch(() => ({})) };
+  }
+
+  // decide which panel to show
+  (async () => {
     try {
-      const r = await fetch('/api/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password: pw.value }),
-      });
-      const j = await r.json();
-      if (r.ok) { msg.style.color = '#16a34a'; msg.textContent = '登录成功（骨架版本，待接入 auth 模块后跳转）'; }
-      else msg.textContent = j.error || '登录失败';
-    } catch (e) { msg.textContent = '网络错误'; }
+      const s = await (await fetch('/api/setup')).json();
+      if (s.needsSetup) { $('setup').classList.remove('hidden'); $('login').classList.add('hidden'); }
+      else { $('setup').classList.add('hidden'); $('login').classList.remove('hidden'); }
+    } catch (e) {
+      chooseLogin();
+    }
+  })();
+
+  function chooseLogin() {
+    $('setup').classList.add('hidden');
+    $('login').classList.remove('hidden');
+  }
+
+  // setup
+  $('btnSetup').addEventListener('click', async () => {
+    const msg = $('msgSetup'); showMsg(msg, '');
+    const password = $('pw1').value, password2 = $('pw2').value;
+    const { r, j } = await postJSON('/api/setup', { password, password2 });
+    if (r.ok) window.location.href = j.redirect || '/main.html';
+    else showMsg(msg, j.error || '设置失败');
   });
-  pw.addEventListener('keydown', (e) => { if (e.key === 'Enter') btn.click(); });
+
+  // login
+  $('btnLogin').addEventListener('click', async () => {
+    const msg = $('msgLogin'); showMsg(msg, '');
+    const { r, j } = await postJSON('/api/login', { password: $('pw').value });
+    if (r.ok) window.location.href = j.redirect || '/main.html';
+    else showMsg(msg, j.error || '登录失败');
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter') return;
+    const s = $('setup').classList.contains('hidden');
+    s ? $('btnLogin').click() : $('btnSetup').click();
+  });
 </script>
 </body>
 </html>

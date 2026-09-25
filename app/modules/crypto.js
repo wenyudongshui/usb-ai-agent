@@ -4,7 +4,7 @@
 
 const crypto = require('crypto');
 
-const KDF = { N: 32768, r: 8, p: 1 };   // scrypt N=2^15
+const KDF = { N: 32768, r: 8, p: 1 };   // scrypt N=2^15 (128*N*r = 32MB; maxmem must exceed it)
 
 function randomKey(len) {
   return crypto.randomBytes(len);
@@ -12,7 +12,10 @@ function randomKey(len) {
 
 // deriveKEK(password, salt) -> 32-byte Buffer (scrypt)
 function deriveKEK(password, salt) {
-  return crypto.scryptSync(String(password), salt, 32, { N: KDF.N, r: KDF.r, p: KDF.p });
+  return crypto.scryptSync(String(password), salt, 32, {
+    N: KDF.N, r: KDF.r, p: KDF.p,
+    maxmem: 64 * 1024 * 1024,   // required: default maxmem (32MB) == footprint => ERR_CRYPTO_INVALID_SCRYPT_PARAMS
+  });
 }
 
 // encrypt(plainObj, key) -> { iv, tag, data }  (base64 strings)
