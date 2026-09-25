@@ -1,0 +1,27 @@
+# ============================================================
+#  USB AI Agent — .gitignore
+# ============================================================
+
+# ---- 运行时生成的数据 / 密钥（敏感，不入库）----
+keys/*
+!keys/.gitkeep
+workspace/*
+!workspace/.gitkeep
+configs/*/config.enc
+configs/*/memory.enc
+
+# ---- 便携运行时（体积大，不入库）----
+node/*
+!node/.gitkeep
+
+# ---- 本地规划文档（仅本地保留，不推送仓库）----
+*.docx
+*.doc
+gen_v4.py
+
+# ---- IDE / 系统文件 ----
+.idea/
+.vscode/
+Thumbs.db
+Desktop.ini
+*.log
