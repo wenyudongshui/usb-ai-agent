@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>USB AI Agent · 主界面</title>
+<link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+<header>
+  <h1>🔒 USB AI Agent</h1>
+  <select id="aiSelect" title="选择 AI"></select>
+  <div class="spacer"></div>
+  <button id="btnSystem" title="本地模型 / 运行时状态">本地模型</button>
+  <button id="btnAddAI">添加 AI</button>
+  <button id="btnPwd">修改密码</button>
+  <button id="btnExitSave">保存并退出</button>
+  <button id="btnExitNoSave">不保存退出</button>
+  <button id="logout">退出登录</button>
+</header>
+
+<main>
+  <div id="noAI" class="banner info hidden">尚未配置 AI。点击右上角「添加 AI」创建第一个模型配置。</div>
+  <div id="ollamaBanner" class="banner info hidden"></div>
+
+  <!-- 对话区 -->
+  <section class="panel">
+    <h2>对话 <span id="activeName" class="muted"></span></h2>
+    <div class="body">
+      <div id="messages"></div>
+      <div class="composer">
+        <textarea id="input" rows="2" placeholder="输入消息，Enter 发送，Shift+Enter 换行"></textarea>
+        <button id="btnSend">发 送</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- 添加 AI -->
+  <section class="panel hidden" id="panelAdd">
+    <h2>添加 AI 配置</h2>
+    <div class="body">
+      <form id="formAdd" autocomplete="off">
+        <div class="form-row">
+          <div class="field"><label>名称</label><input id="f_name" placeholder="例如：DeepSeek"></div>
+          <div class="field"><label>API 地址（BaseURL）</label><input id="f_baseURL" placeholder="https://api.deepseek.com 或 http://127.0.0.1:11434/v1"></div>
+        </div>
+        <div class="form-row">
+          <div class="field"><label>模型名</label><input id="f_model" placeholder="deepseek-chat · qwen3.5:9b"></div>
+          <div class="field"><label>API 密钥</label><input id="f_apiKey" placeholder="sk-... 或 ollama"></div>
+          <div class="field" style="min-width:120px"><label>temperature</label><input id="f_temp" type="number" value="0.7" step="0.1" min="0" max="2"></div>
+        </div>
+        <div class="form-row">
+          <label style="display:flex;align-items:center;gap:6px;font-size:13px"><input type="checkbox" id="f_test" checked> 保存前做连通性测试</label>
+        </div>
+        <div class="form-row">
+          <button type="submit" class="btn">保存 AI</button>
+          <button type="button" class="btn ghost" id="btnCancelAdd">取消</button>
+          <span id="msgAdd" class="muted" style="align-self:center"></span>
+        </div>
+      </form>
+      <hr style="border:none;border-top:1px solid #f3f4f6;margin:14px 0">
+      <div id="aiList"></div>
+    </div>
+  </section>
+
+  <!-- AI 记忆 -->
+  <section class="panel">
+    <h2>记忆（保存退出后写入，AES-256-GCM 加密）</h2>
+    <div class="body">
+      <div id="memoryBox" class="muted">未加载。</div>
+    </div>
+  </section>
+
+  <!-- 系统 / 本地模型 -->
+  <section class="panel hidden" id="panelSystem">
+    <h2>系统 · 本地模型（Ollama）</h2>
+    <div class="body">
+      <div class="form-row">
+        <button class="btn" id="btnOllamaStart">启动本地 Ollama</button>
+        <button class="btn ghost" id="btnOllamaStop">停止（本程序启动的）</button>
+        <span id="msgOllama" class="muted" style="align-self:center"></span>
+      </div>
+      <div id="ollamaModels" class="muted"></div>
+      <hr style="border:none;border-top:1px solid #f3f4f6;margin:14px 0">
+      <div id="sysInfo" class="muted"></div>
+      <p class="muted mt">离线模型安装请先运行 U 盘上的 <code>tools\Setup_Local_Models.bat</code>（Windows）或 <code>start.sh local-setup</code>（mac/Linux）。安装后在此启动，并在「添加 AI」中填入 API 地址 <code>http://127.0.0.1:11434/v1</code>。</p>
+    </div>
+  </section>
+</main>
+
+<!-- 改密弹窗 -->
+<div id="pwdModal" class="hidden card" style="position:fixed;inset:0;margin:auto;width:340px;height:fit-content;z-index:10;box-shadow:0 10px 40px rgba(0,0,0,.25)">
+  <h2 style="margin:0 0 14px;font-size:16px">修改密码</h2>
+  <input type="password" id="p_old" placeholder="原密码" style="width:100%;padding:9px 12px;margin-bottom:12px;border:1px solid #d1d5db;border-radius:8px">
+  <input type="password" id="p_new" placeholder="新密码（8位以上，含大小写与数字）" style="width:100%;padding:9px 12px;margin-bottom:12px;border:1px solid #d1d5db;border-radius:8px">
+  <input type="password" id="p_new2" placeholder="确认新密码" style="width:100%;padding:9px 12px;margin-bottom:12px;border:1px solid #d1d5db;border-radius:8px">
+  <div class="form-row">
+    <button id="btnPwdOk" class="btn">确定</button>
+    <button id="btnPwdCancel" class="btn ghost">取消</button>
+  </div>
+  <div id="msgPwd" class="muted mt"></div>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const state = { ais: [], active: null, convo: [] };
+
+async function jget(url) {
+  const r = await fetch(url);
+  const j = await r.json().catch(() => ({}));
+  return { r, j };
+}
+async function postJSON(url, body) {
+  const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  return { r, j: await r.json().catch(() => ({})) };
+}
+
+// ---------- session gate ----------
+async function guard() {
+  const { j } = await jget('/api/session');
+  if (!j.authed) { window.location.href = '/login.html'; return false; }
+  return true;
+}
+
+// ---------- AI list ----------
+async function loadAIs() {
+  const { j } = await jget('/api/ais');
+  state.ais = j.ais || [];
+  state.active = j.active || null;
+  if (!state.active && state.ais.length) { await postJSON('/api/ai/select', { aiId: state.ais[0].aiId }); state.active = state.ais[0].aiId; }
+
+  const sel = $('aiSelect');
+  sel.innerHTML = '';
+  for (const a of state.ais) {
+    const opt = document.createElement('option');
+    opt.value = a.aiId;
+    opt.textContent = `${a.name} · ${a.model}`;
+    sel.appendChild(opt);
+  }
+  if (state.active) sel.value = state.active;
+  const active = state.ais.find((a) => a.aiId === state.active);
+  $('activeName').textContent = active ? `— ${active.name} / ${active.model}` : '';
+  $('noAI').classList.toggle('hidden', state.ais.length > 0);
+  $('msgAdd').textContent = '';
+  renderAIList();
+}
+
+function renderAIList() {
+  const box = $('aiList');
+  if (!state.ais.length) { box.innerHTML = '<div class="muted">（暂无 AI）</div>'; return; }
+  box.innerHTML = '';
+  for (const a of state.ais) {
+    const row = document.createElement('div');
+    row.className = 'list-item';
+    row.innerHTML = `<div><b>${a.name}</b> <span class="meta">${a.model} · ${a.apiKeyMasked || '无密钥'}</span><br>
+      <span class="meta">${a.baseURL}${a.personaLines ? ' · ' + a.personaLines : ''}</span></div>`;
+    const del = document.createElement('button');
+    del.className = 'btn danger small';
+    del.textContent = '删除';
+    del.onclick = async () => {
+      if (!confirm(`删除 AI「${a.name}」？其记忆将一并删除。`)) return;
+      await postJSON('/api/ai/remove', { aiId: a.aiId });
+      loadAIs();
+    };
+    row.appendChild(del);
+    box.appendChild(row);
+  }
+}
+
+// ---------- chat ----------
+function addMsg(role, content, cls) {
+  const box = $('messages');
+  const el = document.createElement('div');
+  el.className = 'msg ' + (cls || role);
+  if (role !== 'user') el.innerHTML = `<span class="role">${role === 'assistant' ? 'AI' : ''}</span>`;
+  el.textContent = content;
+  box.appendChild(el);
+  box.scrollTop = box.scrollHeight;
+  return el;
+}
+
+async function send() {
+  const input = $('input');
+  const text = input.value.trim();
+  if (!text || !state.active) { if (!state.active) alert('请先添加并选择 AI'); return; }
+  input.value = '';
+
+  state.convo.push({ role: 'user', content: text });
+  addMsg('user', text, 'user');
+
+  const el = addMsg('assistant', '', 'assistant');
+  el.classList.add('cursor');
+
+  let acc = '';
+  try {
+    const r = await fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ aiId: state.active, messages: state.convo, stream: true }),
+    });
+    if (!r.ok) { const err = (await r.json().catch(() => ({}))).error || '请求失败'; throw new Error(err); }
+    const reader = r.body.getReader();
+    const dec = new TextDecoder();
+    let buf = '';
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, { stream: true });
+      const blocks = buf.split('\n\n'); buf = blocks.pop();
+      for (const block of blocks) {
+        const line = block.split('\n').find((l) => l.startsWith('data: '));
+        if (!line) continue;
+        let ev; try { ev = JSON.parse(line.slice(6)); } catch { continue; }
+        if (ev.type === 'delta') { acc += ev.content; el.textContent = acc; el.classList.add('cursor'); el.scrollIntoView({ block: 'end' }); }
+        else if (ev.type === 'error') { acc += '\n[错误] ' + ev.error; el.classList.remove('cursor'); el.classList.add('error'); el.textContent = acc; }
+      }
+    }
+  } catch (e) {
+    acc += '\n[连接失败] ' + e.message;
+  }
+  el.classList.remove('cursor');
+  if (acc.trim()) { el.textContent = acc; state.convo.push({ role: 'assistant', content: acc }); }
+  else el.remove();
+}
+
+// ---------- memory preview ----------
+async function loadMemory() {
+  if (!state.active) { $('memoryBox').textContent = '（先选择 AI）'; return; }
+  // memory is only readable as ciphertext server-side; show latest summary via /api/ais personaLines note
+  $('memoryBox').textContent = '会话历史仅驻留内存；点击「保存并退出」时将写入所选 AI 的 memory.enc（AES-256-GCM）。';
+}
+
+// ---------- init ----------
+(async () => {
+  if (!(await guard())) return;
+  await loadAIs();
+  const { j } = await jget('/api/system');
+  $('sysInfo').textContent = `Node ${j.node} · 数据目录 ${j.dataDir}`;
+  refreshOllama();
+
+  $('aiSelect').addEventListener('change', async () => {
+    await postJSON('/api/ai/select', { aiId: $('aiSelect').value });
+    state.active = $('aiSelect').value;
+    loadAIs();
+  });
+
+  $('btnSend').addEventListener('click', send);
+  $('input').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
+  });
+
+  $('btnAddAI').addEventListener('click', () => $('panelAdd').classList.toggle('hidden'));
+  $('btnCancelAdd').addEventListener('click', () => $('panelAdd').classList.add('hidden'));
+
+  $('formAdd').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const msg = $('msgAdd'); msg.textContent = '保存中…';
+    const body = {
+      name: $('f_name').value.trim(),
+      baseURL: $('f_baseURL').value.trim(),
+      model: $('f_model').value.trim(),
+      apiKey: $('f_apiKey').value.trim(),
+      temperature: parseFloat($('f_temp').value) || 0.7,
+      test: $('f_test').checked,
+    };
+    const { r, j } = await postJSON('/api/ai/create', body);
+    if (!r.ok) { msg.textContent = j.error || '保存失败'; return; }
+    msg.textContent = '已创建 ' + j.aiId;
+    e.target.reset(); $('f_temp').value = '0.7'; $('f_test').checked = true;
+    await loadAIs();
+  });
+
+  $('btnSystem').addEventListener('click', () => { $('panelSystem').classList.toggle('hidden'); refreshOllama(); });
+  $('btnOllamaStart').addEventListener('click', async () => {
+    $('msgOllama').textContent = '启动中…';
+    const { r, j } = await postJSON('/api/local', { action: 'start' });
+    $('msgOllama').textContent = r.ok ? (j.alreadyRunning ? '已在运行' : '已启动') : (j.error || '失败');
+    refreshOllama();
+  });
+  $('btnOllamaStop').addEventListener('click', async () => {
+    const { j } = await postJSON('/api/local', { action: 'stop' });
+    $('msgOllama').textContent = j.ok ? '已停止' : (j.error || '失败');
+    refreshOllama();
+  });
+
+  $('btnPwd').addEventListener('click', () => $('pwdModal').classList.remove('hidden'));
+  $('btnPwdCancel').addEventListener('click', () => $('pwdModal').classList.add('hidden'));
+  $('btnPwdOk').addEventListener('click', async () => {
+    const { r, j } = await postJSON('/api/password', {
+      oldPassword: $('p_old').value, newPassword: $('p_new').value, newPassword2: $('p_new2').value,
+    });
+    const msg = $('msgPwd');
+    if (r.ok) { msg.style.color = '#16a34a'; msg.textContent = '密码已修改'; setTimeout(() => { $('pwdModal').classList.add('hidden'); $('msgPwd').textContent = ''; $('p_old').value = $('p_new').value = $('p_new2').value = ''; }, 900); }
+    else { msg.style.color = '#dc2626'; msg.textContent = j.error || '修改失败'; }
+  });
+
+  async function finishExit(save) {
+    await postJSON('/api/exit', { save, aiId: state.active, messages: state.convo });
+    window.location.href = '/exit.html?done=' + (save ? '1' : '0');
+  }
+  $('btnExitSave').addEventListener('click', async () => {
+    if (state.convo.length && !confirm('将会话摘要写入所选 AI 的记忆并退出？')) return;
+    await finishExit(true);
+  });
+  $('btnExitNoSave').addEventListener('click', async () => { await finishExit(false); });
+
+  $('logout').addEventListener('click', async () => {
+    await fetch('/api/logout', { method: 'POST' });
+    window.location.href = '/login.html';
+  });
+
+  // idle poll of ollama status every 8s when panel visible
+  setInterval(() => { if (!$('panelSystem').classList.contains('hidden')) refreshOllama(); }, 8000);
+})();
+
+async function refreshOllama() {
+  const { j } = await jget('/api/system');
+  const o = j.ollama || {};
+  state.ollama = o;
+  $('ollamaBanner').classList.toggle('hidden', !o.online);
+  $('ollamaBanner').textContent = o.online ? '本地 Ollama 已就绪（离线可用）。' : '';
+  if (o.installed) {
+    $('ollamaModels').textContent = o.online
+      ? `已连接本机 Ollama，模型：${(o.models || []).map((m) => m.name).join('、') || '（无模型，可在「添加 AI」中直接引用已经安装的模型）'}`
+      : '已安装便携 Ollama，但未运行。点击「启动本地 Ollama」后再使用。';
+  } else {
+    $('ollamaModels').textContent = '未检测到便携 Ollama，请先运行 tools\\Setup_Local_Models.bat 安装。';
+  }
+}
+</script>
+</body>
+</html>

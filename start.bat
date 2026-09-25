@@ -1,36 +1,23 @@
 @echo off
-setlocal EnableExtensions EnableDelayedExpansion
+setlocal EnableExtensions
 chcp 65001 >nul
 title USB AI Agent launcher
 
-rem ---- Locate the USB drive letter this script lives on ----
-set "DRIVE=%~d0"
+rem ============================================================
+rem  start.bat — USB AI Agent entry
+rem  Delegates to tools\bootstrap.ps1 which:
+rem   - locates / downloads a pinned portable Node.js into engine\
+rem     (SHA256 verified) on first run
+rem   - runs: node tools\launcher.mjs [subcommand]
+rem ============================================================
 
-if not exist "%DRIVE%\node\node.exe" (
-    echo [ERROR] Node runtime not found: %DRIVE%\node\node.exe
-    echo         Please extract a portable Node.js (Windows x64 LTS) into the node\ folder.
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0tools\bootstrap.ps1" %*
+set "EXITCODE=%ERRORLEVEL%"
+if not "%EXITCODE%"=="0" (
+    echo.
+    echo [ERROR] USB AI Agent failed to start ^(exit code %EXITCODE%^).
+    echo         If this was the first run and it was downloading the runtime,
+    echo         check your network connection and try again.
     pause
-    exit /b 1
 )
-
-rem ---- Find a free port starting from 8787 ----
-set "PORT=8787"
-for /L %%p in (8787,1,8807) do (
-    netstat -an | findstr /r /c:":%%p " | findstr /c:"LISTENING" >nul 2>&1
-    if errorlevel 1 (
-        set "PORT=%%p"
-        goto :portok
-    )
-)
-set "PORT=8787"
-:portok
-echo [INFO] Using port !PORT!
-
-rem ---- Start the local web server with the chosen port ----
-start "USB-AI-Server" /min "%DRIVE%\node\node.exe" "%DRIVE%\app\server.js" !PORT!
-
-rem ---- Wait a moment, then open the browser to the login page ----
-timeout /t 2 /nobreak >nul
-start "" "http://127.0.0.1:!PORT!"
-
-endlocal
+exit /b %EXITCODE%

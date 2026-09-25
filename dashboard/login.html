@@ -4,26 +4,16 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>USB AI Agent · 登录</title>
-<style>
-  body { font-family: 'Microsoft YaHei', sans-serif; background:#f4f6fb; display:flex;
-         justify-content:center; align-items:center; height:100vh; margin:0; }
-  .card { background:#fff; padding:40px; border-radius:12px; box-shadow:0 4px 24px rgba(0,0,0,.08);
-          width:340px; text-align:center; }
-  h1 { font-size:18px; margin-bottom:6px; color:#1f2937; }
-  p.sub { color:#6b7280; font-size:13px; margin-bottom:20px; }
-  input { width:100%; box-sizing:border-box; padding:10px 12px; margin-bottom:14px; border:1px solid #d1d5db;
-          border-radius:8px; font-size:14px; }
-  button { width:100%; padding:10px; background:#2e74b5; color:#fff; border:none; border-radius:8px;
-           font-size:14px; cursor:pointer; }
-  button:hover { background:#25639c; }
-  #msg { margin-top:14px; font-size:13px; color:#dc2626; min-height:18px; }
-  .hidden { display:none; }
-  ul.rules { text-align:left; color:#6b7280; font-size:12px; margin:0 0 14px; padding-left:18px; }
-</style>
+<link rel="stylesheet" href="/styles.css">
 </head>
 <body>
-  <div class="card">
+<div class="login-wrap">
+  <div class="card login-card">
     <h1>🔒 USB AI Agent</h1>
+
+    <div id="unclean" class="banner warn hidden">
+      检测到上次为非正常退出，已自动补清理本机残留。<br>如仍有残留，可运行 U 盘根目录的 <b>clean.bat</b>（或 clean.sh）再次清理。
+    </div>
 
     <!-- 首次设置密码 -->
     <div id="setup">
@@ -46,6 +36,7 @@
       <div id="msgLogin"></div>
     </div>
   </div>
+</div>
 
 <script>
   const $ = (id) => document.getElementById(id);
@@ -60,11 +51,13 @@
     return { r, j: await r.json().catch(() => ({})) };
   }
 
-  // decide which panel to show
   (async () => {
     try {
-      const s = await (await fetch('/api/setup')).json();
-      if (s.needsSetup) { $('setup').classList.remove('hidden'); $('login').classList.add('hidden'); }
+      // unclean flag is surfaced without auth
+      const s = await (await fetch('/api/session')).json();
+      if (s.unclean) $('unclean').classList.remove('hidden');
+      const st = await (await fetch('/api/setup')).json();
+      if (st.needsSetup) { $('setup').classList.remove('hidden'); $('login').classList.add('hidden'); }
       else { $('setup').classList.add('hidden'); $('login').classList.remove('hidden'); }
     } catch (e) {
       chooseLogin();
@@ -76,7 +69,6 @@
     $('login').classList.remove('hidden');
   }
 
-  // setup
   $('btnSetup').addEventListener('click', async () => {
     const msg = $('msgSetup'); showMsg(msg, '');
     const password = $('pw1').value, password2 = $('pw2').value;
@@ -85,7 +77,6 @@
     else showMsg(msg, j.error || '设置失败');
   });
 
-  // login
   $('btnLogin').addEventListener('click', async () => {
     const msg = $('msgLogin'); showMsg(msg, '');
     const { r, j } = await postJSON('/api/login', { password: $('pw').value });

@@ -5,11 +5,15 @@
 
 **版本 V4.0 · 纯U盘 + GUI密码版**：无需任何硬件令牌，一只 U 盘 + 一个密码即可运行，可直接整体实现。
 
+> **底座说明**：本项目的可移植打包层（两段式便携启动器、`data/` 数据树、便携 Ollama 本地模型、环回加固）移植自开源项目
+> [ClaudeCode-Portable](https://github.com/techjarves/ClaudeCode-Portable)（MIT 协议，见仓库 LICENSE）。产品本身（密码门、
+> AES-256-GCM 加密、多 AI 隔离、对话壳层）为自研实现。
+
 ---
 
 ## 项目概述
 
-本项目构建一套**以 U 盘为唯一数据载体**的私有化AI智能体运行系统。全部配置文件、密钥、智能体人设与记忆数据仅存放于U盘；本地电脑仅作为临时运行载体，不持久化保存AI隐私数据。系统以 **GUI 密码作为唯一认证凭证**，支持多AI配置动态切换，并提供 **手动退出清理 + 拔盘兜底清理** 两级机制。
+本项目构建一套**以 U 盘为唯一数据载体**的私有化AI智能体运行系统。全部配置文件、密钥、智能体人设与记忆数据仅存放于U盘；本地电脑仅作为临时运行载体，不持久化保存AI隐私数据。系统以 **GUI 密码作为唯一认证凭证**，支持多AI配置动态切换、SSE 流式对话，并提供 **正常退出全量清理 + 拔盘兜底清理 + 下次启动补清理 + clean.bat 一键清理** 多级机制。
 
 **使用场景**：在公共或临时电脑上使用个人AI助手，要求对话记录、API密钥、人设规则等敏感数据随U盘携带、输入密码才能使用、不遗留于所用电脑。
 
@@ -18,7 +22,8 @@
 - 能做自动的才自动：程序只对确定性可完成的动作做自动化处理；
 - 做不到的明示给使用者：凡程序无法保证的清理动作，以明确的操作指引要求使用者手动完成；
 - 安全边界诚实：在文档与界面中明确说明系统防护范围与不防护范围，不做超出能力的承诺；
-- 单一凭证原则：认证只依赖一个GUI密码，不引入任何需要额外安装或驱动的硬件依赖。
+- 单一凭证原则：认证只依赖一个GUI密码，不引入任何需要额外安装或驱动的硬件依赖；
+- 零第三方依赖：应用层只用 Node.js 内置模块（http / crypto / fs / fetch），无需 npm install。
 
 ### 安全目标边界
 
@@ -26,7 +31,8 @@
 
 - 防止共用电脑的使用者翻看残留临时文件；
 - 防止U盘丢失后他人直接读取配置与记忆（需密码；无密码时密文不可读）；
-- 防止配置文件被单独复制后直接读出明文（AES-256-GCM，密钥被密码保护）。
+- 防止配置文件被单独复制后直接读出明文（AES-256-GCM，密钥被密码保护）；
+- 防止局域网内他人访问本机服务（服务仅绑定 127.0.0.1，并校验 Host/Origin 防 DNS 重绑定）。
 
 **系统明确不防护的范围：**
 
@@ -42,147 +48,87 @@
 | 🛡️ GUI 密码认证 | 登录密码同时承担「页面访问控制」与「数据加密钥匙」双重职责（替代 ESP32 硬件令牌） |
 | 🔐 AES-256-GCM 加密 | 配置 / 密钥 / 人设 / 记忆全部密文落盘；scrypt 口令派生 KEK 保护主密钥 |
 | 💾 数据不出盘 | 本机零持久化，会话仅驻留内存，退出即释放 |
-| 🧹 三档清理 | 正常退出全量清理 → 拔盘尽力清理 → 下次启动补清理；`clean.bat` 一键清残留 |
-| 🧠 多AI人设与记忆隔离 | 每AI独立 `config.enc / prompt.md / memory.enc`，互不覆盖 |
+| 🧹 四档清理 | 正常退出全量清理 → 拔盘尽力清理 → 下次启动补清理 → `clean.bat`/`clean.sh` 一键清残留 |
+| 🧠 多AI人设与记忆隔离 | 每AI独立 `config.enc / prompt.md / memory.enc`，互不覆盖，可动态切换 |
 | 🌐 多模型接入 | 兼容 OpenAI 协议，一套机制接入 DeepSeek / NVIDIA / OpenRouter / Ollama 等 |
+| 🏠 本地离线模型 | 移植上游便携 Ollama：`tools\Setup_Local_Models.bat` 安装引擎与 GGUF 模型，断网可用 |
+| ⚡ 流式对话 | SSE 流式输出，边生成边显示；不支持流式的端点自动回退为非流式 |
 | 🖥️ 自研本地 Web 壳层 | 全部页面自研可控，零第三方依赖（仅需便携 Node.js） |
+| 🔄 便携 Node 自举 | 首次运行自动下载固定版本 Node（SHA256 校验）到 `engine\`，无需手工解压 |
 
 ## 快速开始
 
-1. 准备一只 **U盘**（建议 8GB 以上，NTFS 或 exFAT），按下方目录结构放置文件；
-2. 将便携 **Node.js**（Windows x64 免安装 LTS 版）解压到 `node\`；
-3. 双击 `start.bat`，浏览器自动打开 `127.0.0.1:8787`；
-4. **首次使用**：设置登录密码 → 添加第一个AI（模型API密钥）→ 开始对话；
-5. 使用完毕：点击「保存并退出 / 不保存退出」→ 运行 `clean.bat` → 拔出U盘。
+1. 准备一只 **U盘**（建议 8GB 以上，NTFS 或 exFAT），将本仓库文件拷贝到 U 盘根目录；
+2. 双击 `start.bat`（mac/Linux 运行 `./start.sh`）。**首次运行会自动下载便携 Node.js**（约 30MB，需联网；之后缓存于 `engine\`）；
+3. 浏览器自动打开 `127.0.0.1:<空闲端口>`；**首次使用**：设置登录密码 → 添加第一个AI（模型API密钥，可先连通性测试）→ 开始对话；
+4. 使用完毕：点击「保存并退出 / 不保存退出」→ 自动清理本机残留 → 拔出U盘（可再运行 `clean.bat` 复核）。
 
 > 提示：正常运行无需管理员权限；建议将U盘程序目录加入杀软排除项。
+> 离线使用：先用「本地模型安装」装好 Ollama 引擎与模型，之后断网也能对话。
 
 ## 目录结构
 
 ```text
 U盘根目录/
-├── start.bat            # 双击启动：定位盘符、启动服务器、自动打开浏览器
-├── clean.bat            # 一键清理本机残留（读取 keys\cache_path.txt）
-├── README.txt           # 使用说明与使用者须知
-├── app/                 # 自研壳层（Node.js）
-│   ├── server.js        # 本地 Web 服务器（路由 / 静态 / 会话守卫）
-│   ├── modules/
-│   │   ├── auth.js      # 密码认证、口令派生、会话令牌
-│   │   ├── crypto.js    # AES-256-GCM 加解密、scrypt KEK
-│   │   ├── config.js    # AI 配置扫描与读写
-│   │   ├── ai.js        # OpenAI 兼容 API 客户端
-│   │   ├── memory.js    # 记忆库读写
-│   │   ├── cleanup.js   # 清理与 cache_path 管理
-│   │   └── usb.js       # U盘卷状态检测（拔盘兜底）
-│   └── public/          # 前端页面（login / main / dev / exit）
-├── node/                # 便携 Node 运行时
-├── configs/ai_001/      # 各AI独立目录（可多份）
-│   ├── config.enc       # 加密接口配置（API地址 / 模型 / 密钥）
-│   ├── prompt.md        # 人设与技能规则（明文可编辑）
-│   └── memory.enc       # 加密记忆库
-├── keys/                # 口令加密主密钥 / cache_path / unclean 标记
-└── workspace/           # 工作文件默认输出目录
+├── start.bat / start.sh      # 入口：两段式启动（bootstrap → launcher）
+├── clean.bat / clean.sh      # 一键清理本机残留（读 data\keys\cache_path.txt）
+├── package.json              # 仅元数据（零 dependencies）
+├── LICENSE                   # MIT
+├── lib/                      # 自研壳层（Node.js）
+│   ├── server.js             # 本地 Web 服务器（路由 / SSE / 会话守卫 / 环回加固）
+│   ├── paths.js              # 统一路径解析（PORTABLE_AI_DATA_DIR 可覆盖）
+│   └── modules/
+│       ├── auth.js           # 密码认证、scrypt KEK、会话令牌、限速
+│       ├── crypto.js         # AES-256-GCM 加解密、scrypt KEK
+│       ├── config.js         # AI 配置扫描/读写、active 切换、prompt.md
+│       ├── ai.js             # OpenAI 兼容客户端（chat / chatStream / test）
+│       ├── memory.js         # 记忆库读写（memory.enc）
+│       ├── cleanup.js        # 缓存路径登记与清理
+│       ├── usb.js            # 拔盘兜底（unclean.flag）
+│       └── local-models.js   # 便携 Ollama 启停/状态（移植上游）
+├── dashboard/                # 前端页面（login / main / exit）
+├── tools/                    # 移植自上游的打包底座
+│   ├── bootstrap.ps1 / .sh   # 下载+校验便携 Node → engine\
+│   ├── launcher.mjs          # 平台无关入口（dashboard/status/clean/local-setup）
+│   ├── runtime-manifest.json # 固定 Node 版本清单
+│   ├── Setup_Local_Models.bat / setup_local_models.ps1 / .sh  # 本地 Ollama 模型安装
+│   └── Change_Provider 由网页完成
+├── templates/prompt.md       # 人设模板（createAI 时复制）
+├── engine/                   # 运行时生成：便携 Node（自动）
+└── data/                     # 运行时生成（PORTABLE_AI_DATA_DIR 可覆盖）
+    ├── keys/                 # master.key.enc · cache_path.txt · unclean.flag
+    ├── configs/ai_XXX/       # config.enc · prompt.md · memory.enc
+    ├── workspace/            # 工作文件默认输出目录
+    ├── logs/
+    ├── models/               # 本地模型注册表 installed-models.txt
+    └── ollama/               # 便携 Ollama 引擎与模型数据
 ```
 
 ## 技术方案
 
 | 类别 | 选型 |
 |---|---|
-| 运行时 | 便携 Node.js（Windows x64 免安装 zip，LTS 版本） |
-| 后端壳层 | Node.js 原生模块（http / crypto / fs / child_process / fetch），零第三方依赖 |
+| 运行时 | 便携 Node.js，固定版本自动下载（`tools/bootstrap.ps1` / `bootstrap.sh`，SHA256 校验） |
+| 后端壳层 | Node.js 原生模块（http / crypto / fs / fetch），零第三方依赖 |
 | GUI | 自研本地 Web 页面（HTML/CSS/JS）+ 127.0.0.1 本地服务器 |
 | 加密方案 | AES-256-GCM（node:crypto），密文带随机 IV 与认证标签 |
 | 口令派生 | scrypt（node:crypto 内置，N=2^15, r=8, p=1），派生约 0.2~0.5 秒 |
+| 对话传输 | SSE 流式（`POST /api/chat`），不支持流式的端点自动回退非流式 |
+| 本地模型 | 便携 Ollama 引擎（`data/ollama`）+ GGUF 导入 + `installed-models.txt` 注册表 |
 | AI 接入 | 兼容 OpenAI 协议（/chat/completions），node 原生 fetch |
-| 清理 | clean.bat + 壳层 cleanup 模块 |
-| 平台 | Windows 10 / 11（Node 跨 Win / macOS / Linux） |
+| 清理 | 正常退出清理 + 拔盘兜底（unclean.flag）+ 启动补清理 + clean.bat/sh |
+| 平台 | Windows 10 / 11（macOS / Linux 提供 start.sh / clean.sh 对等脚本） |
 
-## 系统架构
+## 使用说明（README.txt 摘要）
 
-系统按三层组织：
+见 U 盘根目录 `README.txt`（首次使用 / 正常使用 / 退出与清理 / 安全边界 / FAQ）。
 
-1. **U盘层**：唯一数据源，存放启动脚本、便携 Node 运行时、加密配置、人设规则与记忆库；
-2. **本机内存运行层**：Node 服务器在本机内存中运行，浏览器访问 127.0.0.1 页面完成交互，不向本机磁盘持久化业务数据；
-3. **网络API层**：通过兼容 OpenAI 协议的大模型接口完成对话推理。
-
-### 数据流
-
-```text
-双击 start.bat → 定位U盘盘符 → 启动 Node 服务器 → 打开浏览器进入登录页
-登录页输入密码 → scrypt 派生 KEK → 解密主密钥（仅驻留内存）
-选择AI → 解密 config.enc、读取 prompt.md → 构建会话上下文
-对话经 /chat/completions 发送 → 响应返回内存会话数组
-仅当使用者选择保存记忆时 → 会话摘要加密回写 memory.enc
-退出 / 拔盘 → 触发清理，clean.bat 清除本机残留
-```
-
-### 密码认证与密钥派生链
-
-```text
-GUI密码 ──scrypt(N=2^15,r=8,p=1,salt=16B)──▶ KEK(32B) ──解密──▶ MasterKey(32B) ──AES-256-GCM──▶ config.enc / memory.enc
-```
-
-- 登录验证：`master.key.enc` 内含被 KEK 加密的 magic 校验串，能解开并校验通过即密码正确；
-- 会话管理：登录成功后生成 32 字节随机 token（内存 Map 保存），httpOnly + SameSite=Strict Cookie 下发；受保护页面与全部 `/api/*` 一律校验 token，登出 / 退出 / 超时即销毁；
-- 防爆破：失败响应延迟 0.5 秒，连续 5 次失败锁定 30 秒（内存计数）。
-
-## 设备与运行环境要求
-
-| 类别 | 项目 | 要求说明 |
-|---|---|---|
-| U盘 | 容量 | 建议 8GB 以上（推荐 16GB；便携 Node 约 200MB，壳层与配置不足 10MB） |
-| U盘 | 接口与速度 | USB 3.0 及以上；USB 2.0 可运行但启动较慢 |
-| U盘 | 文件系统 | 优先 NTFS；需跨设备兼容时使用 exFAT |
-| 电脑 | 操作系统 | Windows 10 / 11 64位（Node 跨平台，macOS/Linux 需对应运行时包） |
-| 电脑 | 内存与接口 | 内存 4GB 以上（推荐 8GB），USB 接口 |
-| 电脑 | 权限与杀软 | 正常运行无需管理员权限；建议将U盘程序目录加入杀软排除项 |
-| 网络 | 模型服务 | 至少一个兼容 OpenAI 协议的模型API密钥，可配置多个 |
-| 网络 | 中转/代理 | 访问海外模型服务需自备合规代理或中转；可选部署本地模型（如 Ollama）作为离线兜底 |
-
-> 硬件要求即「一只可用的U盘 + 一台可联网的电脑」，无任何硬件令牌。
-
-## 测试与验收
-
-- **功能测试**：启动与环境自检；首次设密；登录 / 错误密码 / 5 次锁定；多AI切换；人设生效；保存与不保存退出；
-- **清理验证**：退出后本机临时目录无残留；workspace 输出正常；拔盘后本机无业务文件；clean.bat 可重复运行；
-- **安全验证**：未登录访问任何 `/api/*` 返回 401；三个 .enc 文件直接打开不可读明文；错误密码 5 次触发锁定；改密码后旧密码失效；
-- **异常场景**：直接拔盘；断网；杀软告警；U盘写保护；Node 运行时缺失；端口被占用（自动递增换端口）。
-
-## 风险与应对
-
-| 风险 | 应对措施 |
-|---|---|
-| 杀软误报 | 代码签名（可选）、引导加入排除项、避免自毁类行为特征 |
-| API 服务不可用或限额 | 多AI / 多密钥配置与故障转移 |
-| 中转服务可见对话 | 界面明示云端可见性，敏感任务改走本地模型（如 Ollama） |
-| U盘损坏或丢失 | 定期备份 workspace，提供记忆导出功能；密文不可解，丢失即需重新初始化 |
-| 密码遗忘 | 明确说明：遗忘即数据不可恢复，需初始化重建；建议配合口令管理器保存 |
-| 端口被占用 | 启动时探测空闲端口（8787 起递增）自动选取 |
-| 多机混用 | 数据只在U盘、不落本机，天然无混用冲突 |
-
-## 扩展方向（可选升级）
-
-V4.0 为「纯U盘 + 密码」的最小完整闭环。以下扩展均以 V4.0 壳层为基座渐进叠加，不影响主线开发：
-
-### 硬件方向
-
-- **ESP32 硬件令牌 / 指纹**：恢复为可选的强认证因子，在密码之上叠加硬件校验（接入点：auth.js 增加二次校验环节）；
-- **硬件安全芯片（SE）与 TPM 联动**：密钥防物理提取、U盘与本机双重认证；
-- 语音交互、状态屏、断电保护等硬件扩展。
-
-### 软件方向
-
-- AI 技能插件系统（Prompt 与函数调用 schema 打包为插件）；
-- 记忆向量检索（本地轻量 embedding，支持长记忆与相似回忆）；
-- 智能路由（按任务类型自动选择模型，平衡成本与质量）；
-- 会话导出迁移（标准格式导出，可跨设备继续）；
-- 审计日志（仅写U盘并加密）。
-
-### 场景方向
+## 场景方向
 
 - 团队共用（多指纹多角色，各自隔离的AI配置与记忆）；
 - 访客模式（无认证时仅开放只读公共AI）。
 
 ## 许可证
 
-本项目部分特性设计参考开源项目 [ClaudeCode-Portable](https://github.com/techjarves/ClaudeCode-Portable)（MIT 协议）。仓库内 LICENSE 以实际文件为准。
+本项目部分特性设计参考开源项目 [ClaudeCode-Portable](https://github.com/techjarves/ClaudeCode-Portable)（MIT 协议）。
+仓库内 LICENSE 为 MIT，以实际文件为准。

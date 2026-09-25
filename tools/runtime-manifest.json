@@ -1,0 +1,9 @@
+{
+  "service": "usb-ai-agent",
+  "version": "4.0.0",
+  "zeroDependencies": true,
+  "node": {
+    "version": "24.21.0",
+    "note": "Pinned portable Node.js. Bootstrapped into engine/ by tools/bootstrap.ps1 (Windows) / tools/bootstrap.sh (POSIX). Downloads + SHA256 verification on first run, then cached on the USB drive."
+  }
+}

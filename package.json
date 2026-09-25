@@ -1,0 +1,18 @@
+{
+  "name": "usb-ai-agent",
+  "version": "4.0.0",
+  "private": true,
+  "description": "U盘私有化AI智能体 · Private AI agent on a USB drive — encrypted & portable, zero host residue, GUI-password gated.",
+  "license": "MIT",
+  "type": "commonjs",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "start": "node tools/launcher.mjs dashboard",
+    "status": "node tools/launcher.mjs status",
+    "clean": "node tools/launcher.mjs clean",
+    "test": "node tests/smoke.mjs"
+  },
+  "dependencies": {}
+}
