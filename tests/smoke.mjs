@@ -139,6 +139,14 @@ try {
   r = await req('/api/login', { method: 'POST', body: { username: 'alice', password: PASS } });
   assert(r.status === 200, 're-login as alice after carol deletion');
 
+  // ---- account creation: duplicate + stale-dir healing ----
+  r = await req('/api/users', { method: 'POST', body: { username: 'alice', password: PASS } });
+  assert(r.status === 400 && r.json.error === '账号已存在', 're-creating an existing account returns 账号已存在');
+  // simulate an interrupted create that left an empty dir (no master.key.enc)
+  fs.mkdirSync(path.join(DATA_DIR, 'users', 'stale'), { recursive: true });
+  r = await req('/api/users', { method: 'POST', body: { username: 'stale', password: PASS } });
+  assert(r.status === 200 && r.json.ok === true, 'stale leftover dir is healed and account created');
+
   // ---- safe exit: cleans host residue, KEEPS all account data ----
   r = await req('/api/exit', { method: 'POST', body: {} });
   assert(r.status === 200, 'POST /api/exit ok');

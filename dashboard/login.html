@@ -112,8 +112,8 @@ $('btnAddOk').addEventListener('click', async () => {
   const name = $('a_name').value.trim(), pw1 = $('a_pw1').value, pw2 = $('a_pw2').value;
   if (!name) { msg.textContent = '请填写账号名'; return; }
   if (pw1 !== pw2) { msg.textContent = '两次输入的密码不一致'; return; }
-  const { r } = await postJSON('/api/users', { username: name, password: pw1 });
-  if (!r.ok) return (msg.textContent = '创建失败');
+  const { r, j } = await postJSON('/api/users', { username: name, password: pw1 });
+  if (!r.ok) return (msg.textContent = j.error || '创建失败');
   await loadUsers();          // refresh the account list immediately
   const lr = await postJSON('/api/login', { username: name, password: pw1 });
   if (lr.r.ok) window.location.href = lr.j.redirect || '/main.html';
