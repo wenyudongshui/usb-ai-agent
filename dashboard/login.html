@@ -30,14 +30,14 @@
   <aside class="sidebar">
     <h1>USB AI Agent</h1>
     <div class="addbtn" id="btnAdd">＋ 新增账号</div>
-    <div id="accountList" class="hidden"></div>
+    <div id="accountList"></div>
   </aside>
 
   <div class="main-area">
     <div class="card login-card" id="loginPanel">
       <div id="unclean" class="banner warn hidden">检测到上次为非正常退出，已自动补清理本机残留。</div>
 
-      <!-- 选择账号后输入密码 -->
+      <!-- 选择账号后仅需输入密码 -->
       <div id="loginBox" class="hidden">
         <h2 id="loginName"></h2>
         <p class="sub">输入该账号的密码</p>
@@ -72,23 +72,33 @@
 
 <script>
 const $ = (id) => document.getElementById(id);
-let users = [];
+let users = []; // account names (strings)
 
 async function postJSON(url, body) {
   const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) });
   return { r, j: await r.json().catch(() => ({})) };
 }
 
+// /api/users returns [{name, created}, ...] — normalize to names
+async function loadUsers() {
+  try {
+    const r = await fetch('/api/users');
+    const { j } = await r.json();
+    users = (j.users || []).map((u) => (typeof u === 'string' ? u : u.name)).filter(Boolean);
+  } catch { /* transient; retried on next load */ }
+  if (users.length === 0) { showEmpty(); return; }
+  const cur = $('loginName').textContent;
+  selectAccount(users.includes(cur) ? cur : users[0]); // keep current selection if possible
+}
+
 function renderAccounts(selected) {
   const box = $('accountList');
-  // account selector is only shown when accounts exist
-  box.classList.toggle('hidden', users.length === 0);
   box.innerHTML = '';
   for (const u of users) {
     const el = document.createElement('div');
     el.className = 'account' + (u === selected ? ' selected' : '');
     el.innerHTML = `<div class="nm">${u}</div>`;
-    el.onclick = () => selectAccount(u);
+    el.onclick = () => selectAccount(u); // click -> auto-fill account name, password only
     box.appendChild(el);
   }
 }
@@ -119,23 +129,14 @@ function showEmpty() {
   renderAccounts(null);
 }
 
-(async () => {
-  try {
-    const s = await (await fetch('/api/session')).json();
-    if (s.unclean) $('unclean').classList.remove('hidden');
-  } catch {}
-  const r = await fetch('/api/users');
-  const { j } = await r.json();
-  users = j.users || [];
-  if (users.length === 0) showEmpty();
-  else selectAccount(users[0]);
-})();
+// initial load + refresh on back/forward cache (USB replug / exit re-enter)
+loadUsers();
+window.addEventListener('pageshow', loadUsers);
 
 $('btnAdd').addEventListener('click', showAdd);
 $('btnLogin').addEventListener('click', async () => {
-  const name = $('loginName').textContent;
   const msg = $('msgLogin'); msg.textContent = '';
-  const { r, j } = await postJSON('/api/login', { username: name, password: $('pw').value });
+  const { r, j } = await postJSON('/api/login', { username: $('loginName').textContent, password: $('pw').value });
   if (r.ok) window.location.href = j.redirect || '/main.html';
   else msg.textContent = j.error || '登录失败';
 });
@@ -146,10 +147,10 @@ $('btnAddOk').addEventListener('click', async () => {
   if (pw1 !== pw2) { msg.textContent = '两次输入的密码不一致'; return; }
   const { r, j } = await postJSON('/api/users', { username: name, password: pw1 });
   if (!r.ok) { msg.textContent = j.error || '创建失败'; return; }
-  // auto-login after creating the first account
+  await loadUsers(); // refresh the list immediately
   const lr = await postJSON('/api/login', { username: name, password: pw1 });
   if (lr.r.ok) window.location.href = lr.j.redirect || '/main.html';
-  else { users.push(name); selectAccount(name); }
+  else selectAccount(name);
 });
 document.addEventListener('keydown', (e) => {
   if (e.key !== 'Enter') return;
