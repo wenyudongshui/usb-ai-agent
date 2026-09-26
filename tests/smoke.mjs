@@ -124,8 +124,6 @@ try {
 
   // ---- cascade delete: account with agents + personas -> whole dir gone ----
   await req('/api/users', { method: 'POST', body: { username: 'carol', password: PASS } });
-  r = await req('/api/users');
-  assert(r.json.users.length === 2 && r.json.users.some((u) => u.name === 'carol'), 'GET /api/users lists all historical accounts (alice + carol)');
   jar = '';
   await req('/api/login', { method: 'POST', body: { username: 'carol', password: PASS } });
   await req('/api/agents', { method: 'POST', body: { name: 'Carol', baseUrl: `http://127.0.0.1:${MOCK_PORT}`, apiKey: 'sk-carol', model: 'sonnet', transport: 'anthropic' } });

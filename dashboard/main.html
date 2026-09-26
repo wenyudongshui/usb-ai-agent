@@ -15,9 +15,6 @@
   .choose-item .dt { color:#6b7280; font-size:12px; margin-top:4px; }
   .choose-item .ops { margin-top:8px; display:flex; gap:6px; }
   .hint { font-size:12px; color:#6b7280; }
-  .progress { height:8px; background:#e5e7eb; border-radius:999px; overflow:hidden; margin:10px 0; }
-  .progress .bar { width:35%; height:100%; background:#2e74b5; border-radius:999px; animation:slide 1.2s ease-in-out infinite; }
-  @keyframes slide { 0%{transform:translateX(-120%)} 100%{transform:translateX(320%)} }
 </style>
 </head>
 <body>
@@ -46,7 +43,6 @@
         <span id="engineMsg" class="muted" style="align-self:center"></span>
       </div>
       <div id="engineInfo" class="hint"></div>
-      <div id="installProgress" class="progress hidden"><div class="bar"></div></div>
       <details>
         <summary class="hint" style="cursor:pointer">安装日志</summary>
         <pre id="engineLog" class="muted" style="white-space:pre-wrap;font-size:12px;max-height:160px;overflow:auto"></pre>
@@ -205,16 +201,15 @@ async function checkEngine() {
 }
 $('btnCheck').addEventListener('click', () => { $('engineMsg').textContent = '检查中…'; checkEngine(); });
 $('btnInstall').addEventListener('click', async () => {
-  const msg = $('engineMsg'), bar = $('installProgress');
-  msg.textContent = '正在安装引擎（约 300MB）…'; bar.classList.remove('hidden');
+  const msg = $('engineMsg'); msg.textContent = '后台安装中…';
   const { j } = await postJSON('/api/engine/install', { action: 'install' });
-  if (!j.ok) { msg.textContent = j.error || '启动安装失败'; bar.classList.add('hidden'); return; }
+  if (!j.ok) { msg.textContent = j.error || '失败'; return; }
+  msg.textContent = '安装中…完成后自动更新';
   const iv = setInterval(async () => {
+    const { j: log } = await jget('/api/engine/log'); $('engineLog').textContent = log.log || '';
     const { j: st } = await jget('/api/engine/check');
-    if (st.installed && !st.updateAvailable) {
-      clearInterval(iv); bar.classList.add('hidden'); msg.textContent = '✅ 安装完成'; checkEngine();
-    }
-  }, 3000);
+    if (st.installed && !st.updateAvailable) { clearInterval(iv); msg.textContent = '完成'; checkEngine(); }
+  }, 4000);
 });
 $('btnRollback').addEventListener('click', async () => {
   const { j } = await postJSON('/api/engine/install', { action: 'rollback' });
