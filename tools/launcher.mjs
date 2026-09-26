@@ -75,10 +75,19 @@ async function cliSession(username, slug) {
     CLAUDE_CONFIG_DIR: dir,
     XDG_CACHE_HOME: join(P.DATA_DIR, 'cache'),
   });
+  // Never fall back to the default endpoint when the persona's meta knows the URL.
+  if (!env.ANTHROPIC_BASE_URL && settings._usbaiBaseUrl) env.ANTHROPIC_BASE_URL = settings._usbaiBaseUrl;
 
   const provider = settings._usbaiProvider;
   const model = settings._usbaiModel || env.ANTHROPIC_MODEL || 'sonnet';
   const p = PROVIDERS[provider];
+  if (provider !== 'anthropic' && !env.ANTHROPIC_BASE_URL) {
+    throw new Error(`该智能体缺少 API 地址（ANTHROPIC_BASE_URL）。请回控制台「② 选择智能体」检查端点，并在「③ 工作人格」重新激活当前人格以重新生成 settings.json。`);
+  }
+  // Unknown non-Anthropic model names are harmless — don't let Claude Code clamp
+  // the session to its assumed 200k window.
+  env.CLAUDE_CODE_DISABLE_UNKNOWN_MODEL_WINDOW_ENFORCEMENT = '1';
+
   const needAdapter = p && p.transport === 'openai';
   let adapter = null;
   try {
@@ -86,14 +95,15 @@ async function cliSession(username, slug) {
       adapter = await AD.startAdapter({
         provider,
         model,
-        baseUrl: settings.env?.ANTHROPIC_BASE_URL || '',
-        key: settings.env?.ANTHROPIC_API_KEY || settings.env?.ANTHROPIC_AUTH_TOKEN || '',
+        baseUrl: env.ANTHROPIC_BASE_URL || '',
+        key: env.ANTHROPIC_API_KEY || env.ANTHROPIC_AUTH_TOKEN || '',
       });
       env.ANTHROPIC_BASE_URL = adapter.url;
       env.ANTHROPIC_AUTH_TOKEN = adapter.token;
       env.ANTHROPIC_API_KEY = '';
     }
-    console.log(`\n  Claude Code → ${p ? p.name : provider} / ${model}\n  工作对象: ${profile?.name || targetSlug}\n  配置目录: ${dir}（settings.json + CLAUDE.md 已加载）\n`);
+    const site = settings._usbaiSite || p?.name || provider;
+    console.log(`\n  Claude Code → ${site} / ${model}\n  智能体: ${settings._usbaiName || ''} · 端点: ${env.ANTHROPIC_BASE_URL}\n  工作对象: ${profile?.name || targetSlug}\n  配置目录: ${dir}（settings.json + CLAUDE.md 已加载）\n`);
     await RT.run(executable, ['--model', model], { stdio: 'inherit', env, cwd: dir });
   } finally {
     await adapter?.close();
