@@ -73,31 +73,31 @@ try {
   assert(!mkFile.includes(PASS) && mkFile.includes('"wrapped"'), 'password not stored in readable form');
 
   // ---- API keys: manual + CC Switch import ----
-  r = await req('/api/api-keys', { method: 'POST', body: { name: 'Mock', provider: 'anthropic', model: 'sonnet', baseUrl: `http://127.0.0.1:${MOCK_PORT}`, key: 'sk-x' } });
-  assert(r.status === 200 && !!r.json.id, 'POST /api/api-keys manual ok');
+  r = await req('/api/agents', { method: 'POST', body: { name: 'Mock', provider: 'anthropic', model: 'sonnet', baseUrl: `http://127.0.0.1:${MOCK_PORT}`, key: 'sk-x' } });
+  assert(r.status === 200 && !!r.json.id, 'POST /api/agents manual ok');
 
   const ccSettings = JSON.stringify({ env: { ANTHROPIC_BASE_URL: 'https://api.deepseek.com/anthropic', ANTHROPIC_AUTH_TOKEN: 'sk-imported', ANTHROPIC_MODEL: 'deepseek-chat' } });
-  r = await req('/api/api-keys/import', { method: 'POST', body: { content: ccSettings } });
-  assert(r.status === 200 && r.json.ids?.length === 1, 'POST /api/api-keys/import cc-switch settings.json ok');
+  r = await req('/api/agents/import', { method: 'POST', body: { content: ccSettings } });
+  assert(r.status === 200 && r.json.ids?.length === 1, 'POST /api/agents/import cc-switch settings.json ok');
 
-  r = await req('/api/api-keys');
-  assert(r.json.configs.length === 2, 'GET /api/api-keys lists 2 configs');
+  r = await req('/api/agents');
+  assert(r.json.configs.length === 2, 'GET /api/agents lists 2 configs');
 
   const manualId = r.json.configs.find((c) => c.name === 'Mock').id;
-  r = await req(`/api/api-keys/${manualId}/activate`, { method: 'POST', body: {} });
-  assert(r.status === 200, 'POST /api/api-keys/:id/activate ok');
+  r = await req(`/api/agents/${manualId}/activate`, { method: 'POST', body: {} });
+  assert(r.status === 200, 'POST /api/agents/:id/activate ok');
 
-  r = await req(`/api/api-keys/${manualId}/test`, { method: 'POST', body: {} });
-  assert(r.status === 200 && r.json.ok === true && messagesHits >= 1, 'POST /api/api-keys/:id/test ok (mock hit)');
+  r = await req(`/api/agents/${manualId}/test`, { method: 'POST', body: {} });
+  assert(r.status === 200 && r.json.ok === true && messagesHits >= 1, 'POST /api/agents/:id/test ok (mock hit)');
 
   // ---- profiles: only name/description/persona/CLAUDE.md ----
-  r = await req('/api/profiles', { method: 'POST', body: { name: 'DailyQA', description: 'desc', persona: '你是测试助手。' } });
-  assert(r.status === 200 && r.json.slug === 'dailyqa', 'POST /api/profiles create ok (no provider/model/key)');
+  r = await req('/api/personas', { method: 'POST', body: { name: 'DailyQA', description: 'desc', persona: '你是测试助手。' } });
+  assert(r.status === 200 && r.json.slug === 'dailyqa', 'POST /api/personas create ok (no provider/model/key)');
 
-  r = await req('/api/profiles/dailyqa/activate', { method: 'POST', body: {} });
-  assert(r.status === 200 && r.json.active === 'dailyqa', 'POST /api/profiles/:slug/activate ok');
+  r = await req('/api/personas/dailyqa/activate', { method: 'POST', body: {} });
+  assert(r.status === 200 && r.json.active === 'dailyqa', 'POST /api/personas/:slug/activate ok');
 
-  const pdir = path.join(DATA_DIR, 'users', 'alice', 'profiles', 'dailyqa');
+  const pdir = path.join(DATA_DIR, 'users', 'alice', 'personas', 'dailyqa');
   const settings = JSON.parse(fs.readFileSync(path.join(pdir, 'settings.json'), 'utf8'));
   assert(settings.systemPrompt === '你是测试助手。' && settings.env?.ANTHROPIC_MODEL === 'sonnet', 'mainstream settings.json generated (persona + active API env)');
   assert(fs.existsSync(path.join(pdir, 'CLAUDE.md')), 'CLAUDE.md seeded');
@@ -110,11 +110,25 @@ try {
   assert(r.status === 200 && r.json.simulated === true, 'POST /api/launch ok (simulated)');
   assert(fs.existsSync(path.join(DATA_DIR, 'launch', 'alice-dailyqa.bat')), 'launch script generated');
 
-  // ---- dev page: delete a second account (forbid-read, allow-delete) ----
-  await req('/api/users', { method: 'POST', body: { username: 'bob', password: PASS } });
-  r = await req('/api/users/bob/delete', { method: 'POST', body: {} });
-  assert(r.status === 200 && r.json.ok === true, 'POST /api/users/bob/delete ok (dev page)');
-  assert(!fs.existsSync(path.join(DATA_DIR, 'users', 'bob')), 'deleted account data removed');
+  // ---- dialog mode info (requires agent + persona selected) ----
+  r = await req('/api/dialog/info');
+  assert(r.status === 200 && r.json.agent?.name === 'Mock' && r.json.persona?.name === 'DailyQA', 'GET /api/dialog/info reflects active agent + persona');
+  assert(r.json.engineInstalled === false, 'GET /api/dialog/info reports engine not installed');
+
+  // ---- cascade delete: account with agents + personas -> whole dir gone ----
+  await req('/api/users', { method: 'POST', body: { username: 'carol', password: PASS } });
+  jar = '';
+  await req('/api/login', { method: 'POST', body: { username: 'carol', password: PASS } });
+  await req('/api/agents', { method: 'POST', body: { provider: 'anthropic', model: 'sonnet', baseUrl: `http://127.0.0.1:${MOCK_PORT}`, key: 'sk-carol' } });
+  await req('/api/personas', { method: 'POST', body: { name: 'CarolWork' } });
+  assert(fs.existsSync(path.join(DATA_DIR, 'users', 'carol', 'agents.enc')), 'carol has encrypted agents.enc');
+  assert(fs.existsSync(path.join(DATA_DIR, 'users', 'carol', 'personas')), 'carol has personas dir');
+  r = await req('/api/users/carol/delete', { method: 'POST', body: {} });
+  assert(r.status === 200 && r.json.ok === true, 'POST /api/users/carol/delete ok (cascade)');
+  assert(!fs.existsSync(path.join(DATA_DIR, 'users', 'carol')), 'cascade delete removes agents + personas + all data');
+  jar = '';
+  r = await req('/api/login', { method: 'POST', body: { username: 'alice', password: PASS } });
+  assert(r.status === 200, 're-login as alice after carol deletion');
 
   // ---- exit wipe: clears all app data + host residue, then stops ----
   r = await req('/api/exit', { method: 'POST', body: { mode: 'wipe' } });

@@ -10,7 +10,7 @@ const P = require('../lib/paths.js');
 const CLN = require('../lib/modules/cleanup.js');
 const USB = require('../lib/modules/usb.js');
 const LOC = require('../lib/modules/local-models.js');
-const PR = require('../lib/modules/profiles.js');
+const PR = require('../lib/modules/personas.js');
 const A = require('../lib/modules/auth.js');
 const RT = require('../lib/modules/runtime.js');
 const AD = require('../lib/modules/adapter.js');
@@ -104,7 +104,7 @@ function readSettingsSafe(dir) {
   try { return JSON.parse(require('node:fs').readFileSync(join(dir, 'settings.json'), 'utf8')); } catch { return null; }
 }
 function readProfileSafe(dir) {
-  try { return JSON.parse(require('node:fs').readFileSync(join(dir, 'profile.json'), 'utf8')); } catch { return null; }
+  try { return JSON.parse(require('node:fs').readFileSync(join(dir, 'persona.json'), 'utf8')); } catch { return null; }
 }
 
 async function main() {
