@@ -10,7 +10,7 @@
 <div class="login-wrap">
   <div class="card login-card">
     <h1>🔒 USB AI Agent</h1>
-    <div id="state" class="banner info">正在退出并清理本机残留…</div>
+    <div id="state" class="banner info">正在退出…</div>
     <p id="detail" class="muted"></p>
     <div class="center mt">
       <button id="btnDone" class="btn hidden">完成，关闭页面</button>
@@ -19,14 +19,16 @@
 </div>
 
 <script>
-  const done = new URLSearchParams(location.search).get('done') === '1';
-  document.getElementById('state').className = 'banner ' + (done ? 'ok' : 'info');
-  document.getElementById('state').textContent = done
-    ? '会话已保存并安全退出，本机残留已清理。'
-    : '已不保存退出，本机残留已清理。';
-  document.getElementById('detail').innerHTML =
-    '你可以安全拔出 U 盘。<br>如需再次清理残留，可运行 U 盘根目录的 <b>clean.bat</b>（Windows）或 <b>clean.sh</b>（mac/Linux）。<br><br>' +
-    '页面不再与服务器连接——服务进程已停止。';
+  const mode = new URLSearchParams(location.search).get('mode') || 'wipe';
+  const el = document.getElementById('state');
+  el.className = 'banner ok';
+  if (mode === 'wipe') {
+    el.textContent = '已全部删除退出（本机残留与全部账号/档案/密钥数据已清除）。';
+    document.getElementById('detail').innerHTML = '本机与 U 盘数据均已被清理，可安全拔出。';
+  } else {
+    el.textContent = '已保留本次在本机的全部更改，其余数据全部清除。';
+    document.getElementById('detail').innerHTML = '本机本次会话产生的更改已保留；账号/档案/密钥等其余数据已清除。可拔出 U 盘。';
+  }
   const b = document.getElementById('btnDone');
   b.classList.remove('hidden');
   b.addEventListener('click', () => window.close());

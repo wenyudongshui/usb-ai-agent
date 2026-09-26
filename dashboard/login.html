@@ -5,89 +5,155 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>USB AI Agent · 登录</title>
 <link rel="stylesheet" href="/styles.css">
+<style>
+  .login-layout { display:flex; min-height:100vh; }
+  .sidebar { width:240px; background:#1f2937; color:#fff; padding:18px 12px; display:flex; flex-direction:column; gap:8px; }
+  .sidebar h1 { font-size:15px; margin:0 8px 12px; }
+  .account { padding:12px 14px; border-radius:10px; cursor:pointer; border:1px solid transparent; }
+  .account:hover { background:#374151; }
+  .account.selected { background:#2e74b5; border-color:#60a5fa; }
+  .account .nm { font-size:14px; }
+  .account .dt { font-size:12px; color:#9ca3af; }
+  .addbtn { border:1px dashed #4b5563; color:#d1d5db; text-align:center; padding:12px; border-radius:10px; cursor:pointer; font-size:13px; }
+  .addbtn:hover { border-color:#9ca3af; color:#fff; }
+  .main-area { flex:1; display:flex; align-items:center; justify-content:center; padding:24px; }
+  .login-card { width:360px; }
+  .login-card h2 { font-size:18px; margin:0 0 4px; }
+  .login-card p.sub { color:#6b7280; font-size:13px; margin:0 0 18px; }
+  .login-card input { width:100%; padding:10px 12px; margin-bottom:14px; border:1px solid #d1d5db; border-radius:8px; font-size:14px; }
+  .login-card button { width:100%; padding:10px; background:#2e74b5; color:#fff; border:none; border-radius:8px; font-size:14px; }
+  ul.rules { text-align:left; color:#6b7280; font-size:12px; margin:0 0 14px; padding-left:18px; }
+</style>
 </head>
 <body>
-<div class="login-wrap">
-  <div class="card login-card">
+<div class="login-layout">
+  <aside class="sidebar">
     <h1>🔒 USB AI Agent</h1>
+    <div id="accountList"></div>
+    <div class="addbtn" id="btnAdd" title="新增账号">＋ 新增账号</div>
+  </aside>
 
-    <div id="unclean" class="banner warn hidden">
-      检测到上次为非正常退出，已自动补清理本机残留。<br>如仍有残留，可运行 U 盘根目录的 <b>clean.bat</b>（或 clean.sh）再次清理。
-    </div>
+  <div class="main-area">
+    <div class="card login-card" id="loginPanel">
+      <div id="unclean" class="banner warn hidden">检测到上次为非正常退出，已自动补清理本机残留。</div>
 
-    <!-- 首次设置密码 -->
-    <div id="setup">
-      <p class="sub">首次使用 · 设置初始密码</p>
-      <input type="password" id="pw1" placeholder="新密码（8位以上，含大小写与数字）">
-      <input type="password" id="pw2" placeholder="确认密码">
-      <ul class="rules">
-        <li>至少 8 位</li>
-        <li>包含大写字母、小写字母和数字</li>
-      </ul>
-      <button id="btnSetup">设置密码并进入</button>
-      <div id="msgSetup"></div>
-    </div>
+      <!-- 选择账号后输入密码 -->
+      <div id="loginBox" class="hidden">
+        <h2 id="loginName"></h2>
+        <p class="sub">输入该账号的密码</p>
+        <input type="password" id="pw" placeholder="密码" autocomplete="current-password">
+        <button id="btnLogin">登 录</button>
+        <div id="msgLogin"></div>
+      </div>
 
-    <!-- 登录 -->
-    <div id="login" class="hidden">
-      <p class="sub">输入密码登录</p>
-      <input type="password" id="pw" placeholder="密码" autocomplete="current-password">
-      <button id="btnLogin">登 录</button>
-      <div id="msgLogin"></div>
+      <!-- 新增账号 -->
+      <div id="addBox" class="hidden">
+        <h2>新增账号</h2>
+        <p class="sub">账号名将显示在左侧列表；密码不落明文，仅作解锁钥匙</p>
+        <input type="text" id="a_name" placeholder="账号名" autocomplete="username">
+        <input type="password" id="a_pw1" placeholder="密码（8位以上，含大小写与数字）" autocomplete="new-password">
+        <input type="password" id="a_pw2" placeholder="确认密码" autocomplete="new-password">
+        <ul class="rules">
+          <li>密码至少 8 位，含大写字母、小写字母和数字</li>
+          <li>密码以 scrypt 派生钥匙加密存储，文件内不可读取</li>
+        </ul>
+        <button id="btnAddOk">创建账号并进入</button>
+        <div id="msgAdd"></div>
+      </div>
+
+      <!-- 空状态 -->
+      <div id="emptyBox" class="hidden">
+        <h2>还没有账号</h2>
+        <p class="sub">点击左侧「＋ 新增账号」创建第一个账号并设置密码。</p>
+      </div>
     </div>
   </div>
 </div>
 
 <script>
-  const $ = (id) => document.getElementById(id);
+const $ = (id) => document.getElementById(id);
+let users = [];
 
-  function showMsg(el, text, ok) {
-    el.style.color = ok ? '#16a34a' : '#dc2626';
-    el.textContent = text || '';
+async function postJSON(url, body) {
+  const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) });
+  return { r, j: await r.json().catch(() => ({})) };
+}
+
+function renderAccounts(selected) {
+  const box = $('accountList');
+  box.innerHTML = '';
+  for (const u of users) {
+    const el = document.createElement('div');
+    el.className = 'account' + (u === selected ? ' selected' : '');
+    el.innerHTML = `<div class="nm">${u}</div>`;
+    el.onclick = () => selectAccount(u);
+    box.appendChild(el);
   }
+}
 
-  async function postJSON(url, body) {
-    const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-    return { r, j: await r.json().catch(() => ({})) };
-  }
+function selectAccount(name) {
+  $('loginName').textContent = name;
+  $('loginBox').classList.remove('hidden');
+  $('addBox').classList.add('hidden');
+  $('emptyBox').classList.add('hidden');
+  $('pw').value = ''; $('msgLogin').textContent = '';
+  $('pw').focus();
+  renderAccounts(name);
+}
 
-  (async () => {
-    try {
-      // unclean flag is surfaced without auth
-      const s = await (await fetch('/api/session')).json();
-      if (s.unclean) $('unclean').classList.remove('hidden');
-      const st = await (await fetch('/api/setup')).json();
-      if (st.needsSetup) { $('setup').classList.remove('hidden'); $('login').classList.add('hidden'); }
-      else { $('setup').classList.add('hidden'); $('login').classList.remove('hidden'); }
-    } catch (e) {
-      chooseLogin();
-    }
-  })();
+function showAdd() {
+  $('loginBox').classList.add('hidden');
+  $('addBox').classList.remove('hidden');
+  $('emptyBox').classList.add('hidden');
+  $('a_name').value = ''; $('a_pw1').value = ''; $('a_pw2').value = ''; $('msgAdd').textContent = '';
+  $('a_name').focus();
+  renderAccounts(null);
+}
 
-  function chooseLogin() {
-    $('setup').classList.add('hidden');
-    $('login').classList.remove('hidden');
-  }
+function showEmpty() {
+  $('loginBox').classList.add('hidden');
+  $('addBox').classList.add('hidden');
+  $('emptyBox').classList.remove('hidden');
+  renderAccounts(null);
+}
 
-  $('btnSetup').addEventListener('click', async () => {
-    const msg = $('msgSetup'); showMsg(msg, '');
-    const password = $('pw1').value, password2 = $('pw2').value;
-    const { r, j } = await postJSON('/api/setup', { password, password2 });
-    if (r.ok) window.location.href = j.redirect || '/main.html';
-    else showMsg(msg, j.error || '设置失败');
-  });
+(async () => {
+  try {
+    const s = await (await fetch('/api/session')).json();
+    if (s.unclean) $('unclean').classList.remove('hidden');
+  } catch {}
+  const r = await fetch('/api/users');
+  const { j } = await r.json();
+  users = j.users || [];
+  if (users.length === 0) showEmpty();
+  else selectAccount(users[0]);
+})();
 
-  $('btnLogin').addEventListener('click', async () => {
-    const msg = $('msgLogin'); showMsg(msg, '');
-    const { r, j } = await postJSON('/api/login', { password: $('pw').value });
-    if (r.ok) window.location.href = j.redirect || '/main.html';
-    else showMsg(msg, j.error || '登录失败');
-  });
-  document.addEventListener('keydown', (e) => {
-    if (e.key !== 'Enter') return;
-    const s = $('setup').classList.contains('hidden');
-    s ? $('btnLogin').click() : $('btnSetup').click();
-  });
+$('btnAdd').addEventListener('click', showAdd);
+$('btnLogin').addEventListener('click', async () => {
+  const name = $('loginName').textContent;
+  const msg = $('msgLogin'); msg.textContent = '';
+  const { r, j } = await postJSON('/api/login', { username: name, password: $('pw').value });
+  if (r.ok) window.location.href = j.redirect || '/main.html';
+  else msg.textContent = j.error || '登录失败';
+});
+$('btnAddOk').addEventListener('click', async () => {
+  const msg = $('msgAdd'); msg.textContent = '';
+  const name = $('a_name').value.trim(), pw1 = $('a_pw1').value, pw2 = $('a_pw2').value;
+  if (!name) { msg.textContent = '请填写账号名'; return; }
+  if (pw1 !== pw2) { msg.textContent = '两次输入的密码不一致'; return; }
+  const { r, j } = await postJSON('/api/users', { username: name, password: pw1 });
+  if (!r.ok) { msg.textContent = j.error || '创建失败'; return; }
+  // auto-login after creating the first account
+  const lr = await postJSON('/api/login', { username: name, password: pw1 });
+  if (lr.r.ok) window.location.href = lr.j.redirect || '/main.html';
+  else { users.push(name); selectAccount(name); }
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Enter') return;
+  if (!$('loginBox').classList.contains('hidden')) $('btnLogin').click();
+  else if (!$('addBox').classList.contains('hidden')) $('btnAddOk').click();
+});
 </script>
 </body>
 </html>

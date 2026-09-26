@@ -5,29 +5,35 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>USB AI Agent · 管理控制台</title>
 <link rel="stylesheet" href="/styles.css">
+<style>
+  .dropzone { border:2px dashed #9ca3af; border-radius:10px; padding:22px; text-align:center; color:#6b7280; cursor:pointer; font-size:13px; transition:all .15s; }
+  .dropzone.over { border-color:#2e74b5; background:#eff6ff; color:#1e40af; }
+  .exitbtn { flex:1; padding:16px; border:none; border-radius:12px; font-size:14px; color:#fff; cursor:pointer; }
+  .exitbtn.wipe { background:#dc2626; }
+  .exitbtn.keep { background:#b45309; }
+  .badge { display:inline-block; background:#eff6ff; color:#1e40af; padding:2px 8px; border-radius:999px; font-size:12px; }
+</style>
 </head>
 <body>
 <header>
   <h1>🛠️ USB AI Agent</h1>
-  <select id="profileSelect" title="当前档案"></select>
+  <span id="userBadge" class="badge"></span>
   <div class="spacer"></div>
   <button id="btnLaunch" title="以当前档案打开 Claude Code 终端">🚀 命令行对话</button>
-  <button id="btnInstall">安装引擎</button>
   <button id="btnPwd">修改密码</button>
-  <button id="btnExit">安全退出</button>
   <button id="logout">退出登录</button>
 </header>
 
 <main>
   <div id="unclean" class="banner warn hidden">检测到上次为非正常退出，已自动补清理本机残留。</div>
-  <div id="noProfile" class="banner info hidden">还没有档案。先在下方「档案管理」创建一个（提供商 + 模型 + 提示词），再安装引擎、启动对话。</div>
 
-  <!-- 引擎 -->
+  <!-- 1. 引擎：先检查，再确认安装（两段式） -->
   <section class="panel">
     <h2>🖥️ Claude Code 引擎 <span id="engineBadge" class="muted"></span></h2>
     <div class="body">
       <div class="form-row">
-        <button class="btn" id="btnInstallBig">安装 / 更新引擎</button>
+        <button class="btn" id="btnCheck">① 检查是否安装 / 有更新</button>
+        <button class="btn" id="btnInstall" disabled>② 确认安装 / 更新引擎</button>
         <button class="btn ghost" id="btnRollback">回滚上一版本</button>
         <span id="engineMsg" class="muted" style="align-self:center"></span>
       </div>
@@ -39,13 +45,41 @@
     </div>
   </section>
 
-  <!-- 档案管理 -->
+  <!-- 2. API 密钥管理 -->
   <section class="panel">
-    <h2>📁 档案管理（提供商 + 提示词，可切换）</h2>
+    <h2>🔑 API 密钥管理 <span class="muted">（提供商 / 模型 / 密钥 —— 手动填写 或 拖入 CC Switch 的 settings.json）</span></h2>
+    <div class="body">
+      <div class="dropzone" id="dropZone">
+        将 <b>CC Switch</b> 导出的 <b>settings.json</b> 拖到这里（或点击选择文件）自动识别导入
+      </div>
+      <input type="file" id="fileInput" accept=".json,application/json" class="hidden">
+      <div id="apiList" class="mt"></div>
+      <div class="mt">
+        <h3 style="font-size:13px;margin:0 0 8px;color:#374151">手动添加</h3>
+        <div class="form-row">
+          <div class="field"><label>名称</label><input id="k_name" placeholder="例如：DeepSeek"></div>
+          <div class="field"><label>提供商</label><select id="k_provider"></select></div>
+        </div>
+        <div class="form-row">
+          <div class="field"><label>模型名</label><input id="k_model" placeholder="deepseek-chat / claude-sonnet-4 ..."></div>
+          <div class="field"><label>API 地址（BaseURL，可留空用默认）</label><input id="k_base" placeholder="https://api.anthropic.com"></div>
+          <div class="field" style="min-width:160px"><label>API 密钥</label><input id="k_key" type="password" placeholder="sk-... 或 ollama"></div>
+        </div>
+        <div class="form-row">
+          <button class="btn" id="btnAddKey">保存密钥</button>
+          <span id="apiMsg" class="muted" style="align-self:center"></span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3. 档案（工作对象） -->
+  <section class="panel">
+    <h2>📁 档案管理 <span class="muted">（只需名称 / 描述 / 人设 / CLAUDE.md，提供商与密钥在「API 密钥管理」）</span></h2>
     <div class="body">
       <div class="form-row">
         <button class="btn" id="btnNewProfile">＋ 新建档案</button>
-        <span class="muted" style="align-self:center">每个档案 = 一个工作对象（独立 settings.json + CLAUDE.md，主流 Claude Code 格式）</span>
+        <span class="muted" style="align-self:center">每个档案 = 一个工作对象（settings.json + CLAUDE.md，主流 Claude Code 格式）</span>
       </div>
       <div id="profileList"></div>
 
@@ -53,26 +87,17 @@
         <h3 id="editorTitle" style="font-size:14px;margin:0 0 12px">新建档案</h3>
         <input type="hidden" id="e_slug">
         <div class="form-row">
-          <div class="field"><label>档案名称（工作对象）</label><input id="e_name" placeholder="例如：DeepSeek 通用助手"></div>
+          <div class="field"><label>档案名称（工作对象）</label><input id="e_name" placeholder="例如：日常问答"></div>
           <div class="field"><label>描述</label><input id="e_desc" placeholder="可选，一句话说明用途"></div>
         </div>
         <div class="form-row">
-          <div class="field"><label>提供商</label><select id="e_provider"></select></div>
-          <div class="field"><label>模型名</label><input id="e_model" placeholder="deepseek-chat / claude-sonnet-4 ..."></div>
-        </div>
-        <div class="form-row">
-          <div class="field"><label>API 地址（BaseURL，可留空用默认）</label><input id="e_base" placeholder="https://api.anthropic.com"></div>
-          <div class="field"><label>API 密钥</label><input id="e_key" type="password" placeholder="sk-... 或 ollama"></div>
-        </div>
-        <div class="form-row">
-          <div class="field"><label>systemPrompt（人设，写入 settings.json）</label><textarea id="e_prompt" rows="4" placeholder="为 Claude Code 设定角色/输出风格，作为系统提示注入"></textarea></div>
+          <div class="field"><label>人设（systemPrompt，写入 settings.json）</label><textarea id="e_persona" rows="3" placeholder="为 Claude Code 设定角色/输出风格"></textarea></div>
         </div>
         <div class="form-row">
           <div class="field"><label>CLAUDE.md（该工作对象的习惯/规则，启动时自动加载）</label><textarea id="e_claude" rows="5" placeholder="# 工作对象与习惯&#10;..."></textarea></div>
         </div>
         <div class="form-row">
           <button type="button" class="btn" id="btnSaveProfile">保存档案</button>
-          <button type="button" class="btn ghost" id="btnTestProfile">测试连接</button>
           <button type="button" class="btn ghost" id="btnCancelEditor">取消</button>
           <span id="editorMsg" class="muted" style="align-self:center"></span>
         </div>
@@ -80,7 +105,15 @@
     </div>
   </section>
 
-  <!-- 系统 -->
+  <!-- 4. 账号管理（开发页：禁止读取密码，允许删除账号） -->
+  <section class="panel">
+    <h2>👥 账号管理 <span class="muted">（账号密码加密存储，文件不可读取；此页仅允许删除）</span></h2>
+    <div class="body">
+      <div id="accountList"></div>
+    </div>
+  </section>
+
+  <!-- 5. 系统 / 本地模型 -->
   <section class="panel">
     <h2>⚙️ 系统 · 本地模型</h2>
     <div class="body">
@@ -90,8 +123,17 @@
         <button class="btn ghost" id="btnOllamaStop">停止（本程序启动的）</button>
         <span id="ollamaInfo" class="muted" style="align-self:center"></span>
       </div>
-      <p class="muted mt">本地离线模型安装：运行 U 盘上 <code>tools\Setup_Local_Models.bat</code>（Windows）或 <code>./start.sh local-setup</code>。安装后新建一个档案，提供商选 Ollama，模型填已安装的模型名，密钥任意。</p>
     </div>
+  </section>
+
+  <!-- 6. 退出（仅两项） -->
+  <section class="panel">
+    <h2>🚪 退出</h2>
+    <div class="body form-row">
+      <button class="exitbtn wipe" id="btnExitWipe">1. 全部删除退出</button>
+      <button class="exitbtn keep" id="btnExitKeep">2. 保留本次在本机的全部更改，其余数据全部清除</button>
+    </div>
+    <div class="body muted" style="font-size:12px">① 删除本机残留与全部账号/档案/密钥数据；② 保留本次在本机产生的更改（不清理本机），清除其余全部数据（账号/档案/密钥）。</div>
   </section>
 </main>
 
@@ -109,7 +151,7 @@
 
 <script>
 const $ = (id) => document.getElementById(id);
-const state = { providers: {}, profiles: [], active: null, editing: null };
+const state = { providers: {}, configs: [], profiles: [], users: [], username: null };
 
 async function jget(url) { const r = await fetch(url); return { r, j: await r.json().catch(() => ({})) }; }
 async function postJSON(url, body, method = 'POST') {
@@ -120,63 +162,130 @@ async function postJSON(url, body, method = 'POST') {
 async function guard() {
   const { j } = await jget('/api/session');
   if (!j.authed) { window.location.href = '/login.html'; return false; }
+  state.username = j.username;
+  $('userBadge').textContent = j.username;
   if (j.unclean) $('unclean').classList.remove('hidden');
   return true;
 }
 
-// ---------- engine ----------
-async function loadEngine() {
-  const { j } = await jget('/api/runtime');
-  $('engineBadge').textContent = j.installed ? `已安装 v${j.version}` : '未安装';
-  $('engineInfo').textContent = j.installed
-    ? `引擎: ${j.executable} · 固定版本 ${j.pinned} · Node ${j.node}`
-    : `未安装。点击「安装 / 更新引擎」将下载固定版本 ${j.pinned}（约 300MB，需联网）到 U 盘。`;
-  const log = await jget('/api/runtime/log');
+// ---------- engine: check then install (two steps) ----------
+async function checkEngine() {
+  const { j } = await jget('/api/engine/check');
+  const msg = $('engineMsg');
+  if (!j.installed) {
+    $('engineInfo').textContent = `未安装。可安装固定版本 ${j.pinned}（约 300MB，需联网）。`;
+    $('btnInstall').textContent = '② 确认安装引擎';
+    $('btnInstall').disabled = false;
+  } else if (j.updateAvailable) {
+    $('engineInfo').textContent = `已安装 v${j.version}，检测到可更新版本 v${j.pinned}。`;
+    $('btnInstall').textContent = '② 确认更新引擎';
+    $('btnInstall').disabled = false;
+  } else {
+    $('engineInfo').textContent = `已安装最新 v${j.version}，无需更新。`;
+    $('btnInstall').textContent = '② 确认更新引擎';
+    $('btnInstall').disabled = true;
+  }
+  $('engineBadge').textContent = j.installed ? `v${j.version}` : '未安装';
+  const log = await jget('/api/engine/log');
   $('engineLog').textContent = log.j.log || '（暂无日志）';
+  return j;
 }
-async function installEngine() {
-  const msg = $('engineMsg'); msg.textContent = '后台安装中…可在此查看日志进度';
-  const { j } = await postJSON('/api/runtime', { action: 'install' });
+$('btnCheck').addEventListener('click', () => { $('engineMsg').textContent = '检查中…'; checkEngine(); });
+$('btnInstall').addEventListener('click', async () => {
+  const msg = $('engineMsg'); msg.textContent = '后台安装中…约 300MB，日志可见进度';
+  const { j } = await postJSON('/api/engine/install', { action: 'install' });
   if (!j.ok) { msg.textContent = j.error || '启动安装失败'; return; }
-  msg.textContent = '安装已启动，约 300MB，请稍候…（此页面可一直刷新日志）';
+  msg.textContent = '安装已启动…（可刷新日志；完成后状态自动更新）';
   const iv = setInterval(async () => {
-    const { j: log } = await jget('/api/runtime/log');
+    const { j: log } = await jget('/api/engine/log');
     $('engineLog').textContent = log.log || '';
-    const { j: st } = await jget('/api/runtime');
-    if (st.installed) { clearInterval(iv); msg.textContent = '✅ 安装完成'; loadEngine(); }
+    const { j: st } = await jget('/api/engine/check');
+    if (st.installed && !st.updateAvailable) { clearInterval(iv); msg.textContent = '✅ 安装完成'; checkEngine(); }
   }, 4000);
-}
-async function rollbackEngine() {
-  const { j } = await postJSON('/api/runtime', { action: 'rollback' });
+});
+$('btnRollback').addEventListener('click', async () => {
+  const { j } = await postJSON('/api/engine/install', { action: 'rollback' });
   $('engineMsg').textContent = j.ok ? '已回滚' : (j.error || '失败');
-  loadEngine();
+  checkEngine();
+});
+
+// ---------- API keys ----------
+async function loadApi() {
+  const { j } = await jget('/api/api-keys');
+  state.configs = j.configs || [];
+  state.providers = j.providers || {};
+  fillProviderSelect();
+  renderApi();
+}
+function fillProviderSelect() {
+  const sel = $('k_provider');
+  sel.innerHTML = '';
+  for (const [k, v] of Object.entries(state.providers)) {
+    const opt = document.createElement('option'); opt.value = k; opt.textContent = `${v.name}${v.local ? ' · 本地' : ''}`; sel.appendChild(opt);
+  }
+}
+function renderApi() {
+  const box = $('apiList');
+  if (!state.configs.length) { box.innerHTML = '<div class="muted">（暂无密钥配置）</div>'; return; }
+  box.innerHTML = '';
+  for (const c of state.configs) {
+    const row = document.createElement('div');
+    row.className = 'list-item';
+    row.innerHTML = `<div><b>${c.active ? '✅ ' : ''}${c.name}</b> <span class="meta">${c.provider} · ${c.model}${c.hasKey ? ' · ' + c.keyMasked : ''}${c.imported ? ' · [导入]' : ''}</span><br><span class="meta">${c.baseUrl}</span></div>`;
+    const actions = document.createElement('div');
+    actions.style.cssText = 'display:flex;gap:6px;flex-wrap:wrap';
+    const mk = (label, fn, cls = 'btn small') => { const b = document.createElement('button'); b.className = cls; b.textContent = label; b.onclick = fn; return b; };
+    if (!c.active) actions.appendChild(mk('设为当前', () => activateApi(c.id)));
+    actions.appendChild(mk('测试', () => testApi(c.id)));
+    actions.appendChild(mk('删除', () => delApi(c.id), 'btn danger small'));
+    row.appendChild(actions);
+    box.appendChild(row);
+  }
+}
+async function activateApi(id) { const { j } = await postJSON(`/api/api-keys/${id}/activate`, {}); loadApi(); }
+async function testApi(id) { const { j } = await postJSON(`/api/api-keys/${id}/test`, {}); alert(j.ok ? '连接正常' : (j.error || '连接失败')); }
+async function delApi(id) { if (!confirm('删除该密钥配置？')) return; await postJSON(`/api/api-keys/${id}`, {}, 'DELETE'); loadApi(); }
+
+$('k_provider').addEventListener('change', () => {
+  const v = state.providers[$('k_provider').value];
+  if (v) { $('k_base').placeholder = v.baseUrl; if (!$('k_base').value) $('k_base').value = v.baseUrl; }
+});
+$('btnAddKey').addEventListener('click', async () => {
+  const msg = $('apiMsg'); msg.textContent = '保存中…';
+  const { j } = await postJSON('/api/api-keys', {
+    name: $('k_name').value.trim(), provider: $('k_provider').value, model: $('k_model').value.trim(),
+    baseUrl: $('k_base').value.trim(), key: $('k_key').value.trim(),
+  });
+  if (!j.ok) { msg.textContent = j.error || '保存失败'; return; }
+  msg.textContent = '✅ 已保存';
+  $('k_name').value = $('k_model').value = $('k_key').value = '';
+  loadApi();
+});
+
+// drag-drop / file import (CC Switch settings.json)
+const dz = $('dropZone');
+dz.addEventListener('click', () => $('fileInput').click());
+$('fileInput').addEventListener('change', async (e) => { const f = e.target.files[0]; if (f) importFile(f); e.target.value = ''; });
+['dragover', 'dragenter'].forEach((ev) => dz.addEventListener(ev, (e) => { e.preventDefault(); dz.classList.add('over'); }));
+['dragleave', 'drop'].forEach((ev) => dz.addEventListener(ev, (e) => { e.preventDefault(); dz.classList.remove('over'); }));
+dz.addEventListener('drop', (e) => {
+  const f = e.dataTransfer?.files?.[0];
+  if (f) importFile(f);
+});
+async function importFile(file) {
+  const text = await file.text();
+  const msg = $('apiMsg'); msg.textContent = '导入中…';
+  const { j } = await postJSON('/api/api-keys/import', { content: text });
+  msg.textContent = j.ok ? `✅ 已导入 ${j.ids?.length || 0} 个密钥配置` : (j.error || '导入失败');
+  loadApi();
 }
 
 // ---------- profiles ----------
 async function loadProfiles() {
   const { j } = await jget('/api/profiles');
-  state.providers = j.providers || {};
   state.profiles = j.profiles || [];
-  state.active = (await jget('/api/session')).j.active;
-  fillProviderSelect();
   renderProfiles();
-  fillProfileSelect();
-  $('noProfile').classList.toggle('hidden', state.profiles.length > 0);
 }
-
-function fillProviderSelect() {
-  const sel = $('e_provider');
-  const current = sel.value;
-  sel.innerHTML = '';
-  for (const [k, v] of Object.entries(state.providers)) {
-    const opt = document.createElement('option');
-    opt.value = k;
-    opt.textContent = `${v.name} ${v.local ? '· 本地' : ''}`;
-    sel.appendChild(opt);
-  }
-  if (current) sel.value = current;
-}
-
 function renderProfiles() {
   const box = $('profileList');
   if (!state.profiles.length) { box.innerHTML = '<div class="muted">（暂无档案，点击「＋ 新建档案」创建）</div>'; return; }
@@ -184,141 +293,107 @@ function renderProfiles() {
   for (const p of state.profiles) {
     const row = document.createElement('div');
     row.className = 'list-item';
-    row.innerHTML = `<div><b>${p.active ? '✅ ' : ''}${p.name}</b> <span class="meta">${p.provider} · ${p.model}${p.hasKey ? ' · 有密钥' : ''}</span><br>
-      <span class="meta">${p.baseUrl}</span>${p.systemPrompt ? `<br><span class="meta">${p.systemPrompt.slice(0, 60)}…</span>` : ''}</div>`;
+    row.innerHTML = `<div><b>${p.active ? '✅ ' : ''}${p.name}</b> ${p.personaPreview ? `<span class="meta">${p.personaPreview}</span>` : ''}<br><span class="meta">${p.description || ''}</span></div>`;
     const actions = document.createElement('div');
     actions.style.cssText = 'display:flex;gap:6px;flex-wrap:wrap';
     const mk = (label, fn, cls = 'btn small') => { const b = document.createElement('button'); b.className = cls; b.textContent = label; b.onclick = fn; return b; };
     if (!p.active) actions.appendChild(mk('激活', () => activateProfile(p.slug)));
     actions.appendChild(mk('编辑', () => openEditor(p.slug)));
-    actions.appendChild(mk('测试', () => testProfile(p.slug)));
     actions.appendChild(mk('删除', () => delProfile(p.slug), 'btn danger small'));
     row.appendChild(actions);
     box.appendChild(row);
   }
 }
-
-function fillProfileSelect() {
-  const sel = $('profileSelect');
-  sel.innerHTML = '';
-  for (const p of state.profiles) {
-    const opt = document.createElement('option');
-    opt.value = p.slug;
-    opt.textContent = `${p.active ? '✅ ' : ''}${p.name} · ${p.model}`;
-    sel.appendChild(opt);
-  }
-  if (state.active) sel.value = state.active;
-}
-$('profileSelect').addEventListener('change', async () => {
-  const slug = $('profileSelect').value;
-  if (slug) await postJSON(`/api/profiles/${slug}/activate`, {});
-  loadProfiles();
-});
-
 async function activateProfile(slug) {
-  await postJSON(`/api/profiles/${slug}/activate`, {});
+  const { j } = await postJSON(`/api/profiles/${slug}/activate`, {});
+  $('editorMsg').textContent = j.ok ? '✅ 已激活（settings.json 已生成）' : (j.error || '激活失败');
   loadProfiles();
 }
 async function delProfile(slug) {
-  const p = state.profiles.find((x) => x.slug === slug);
-  if (!confirm(`删除档案「${p ? p.name : slug}」？其 settings.json / CLAUDE.md / 密钥一并删除。`)) return;
+  if (!confirm('删除该档案？')) return;
   await postJSON(`/api/profiles/${slug}`, {}, 'DELETE');
   loadProfiles();
 }
-async function testProfile(slug) {
-  const { j } = await postJSON(`/api/profiles/${slug}/test`, {});
-  alert(j.ok ? '连接正常' : (j.error || '连接失败'));
-}
 
-// ---------- profile editor ----------
 function resetEditor() {
-  state.editing = null;
-  $('e_slug').value = '';
-  $('editorTitle').textContent = '新建档案';
-  $('e_name').value = $('e_desc').value = $('e_model').value = $('e_base').value = $('e_key').value = $('e_prompt').value = $('e_claude').value = '';
-  $('editorMsg').textContent = '';
-  fillProviderSelect();
+  $('e_slug').value = ''; $('editorTitle').textContent = '新建档案';
+  $('e_name').value = $('e_desc').value = $('e_persona').value = $('e_claude').value = ''; $('editorMsg').textContent = '';
 }
-$('btnNewProfile').addEventListener('click', () => {
-  resetEditor();
-  $('profileEditor').classList.remove('hidden');
-});
+$('btnNewProfile').addEventListener('click', () => { resetEditor(); $('profileEditor').classList.remove('hidden'); });
 $('btnCancelEditor').addEventListener('click', () => $('profileEditor').classList.add('hidden'));
-
 async function openEditor(slug) {
   const { j: p } = await jget(`/api/profiles/${slug}`);
-  if (!p || !p.slug) { alert('档案不存在'); return; }
   resetEditor();
-  state.editing = slug;
   $('editorTitle').textContent = `编辑 · ${p.name}`;
   $('e_slug').value = slug;
-  $('e_name').value = p.name || '';
-  $('e_desc').value = p.description || '';
-  $('e_provider').value = p.provider;
-  $('e_model').value = p.model || '';
-  $('e_base').value = p.baseUrl || '';
-  $('e_key').value = p.hasKey ? '' : '';
-  $('e_key').placeholder = p.hasKey ? `已有密钥（${p.keyMasked}），留空不修改` : 'sk-... 或 ollama';
-  $('e_prompt').value = p.systemPrompt || '';
+  $('e_name').value = p.name || ''; $('e_desc').value = p.description || ''; $('e_persona').value = p.persona || '';
   const { j: md } = await jget(`/api/profiles/${slug}/claude-md`);
   $('e_claude').value = md.content || '';
   $('profileEditor').classList.remove('hidden');
 }
-
-$('e_provider').addEventListener('change', () => {
-  const v = state.providers[$('e_provider').value];
-  if (v) { $('e_base').placeholder = v.baseUrl; if (!$('e_base').value) $('e_base').value = v.baseUrl; }
-});
-
 $('btnSaveProfile').addEventListener('click', async () => {
   const msg = $('editorMsg'); msg.textContent = '保存中…';
-  const body = {
-    name: $('e_name').value.trim(),
-    description: $('e_desc').value.trim(),
-    provider: $('e_provider').value,
-    model: $('e_model').value.trim(),
-    baseUrl: $('e_base').value.trim(),
-    systemPrompt: $('e_prompt').value,
-  };
-  const key = $('e_key').value.trim();
-  if (key) body.key = key;
-  let r;
-  if (state.editing) {
-    r = await postJSON(`/api/profiles/${state.editing}`, body);
-    if (r.j.ok) await postJSON(`/api/profiles/${state.editing}/claude-md`, { content: $('e_claude').value });
-  } else {
-    r = await postJSON('/api/profiles', body);
-    if (r.j.ok) await postJSON(`/api/profiles/${r.j.slug}/claude-md`, { content: $('e_claude').value });
-  }
-  if (!r.j.ok && !r.j.slug && !r.j.ok === undefined) { msg.textContent = r.j.error || '保存失败'; return; }
-  msg.textContent = '✅ 已保存';
-  $('profileEditor').classList.add('hidden');
-  loadProfiles();
-});
-$('btnTestProfile').addEventListener('click', async () => {
-  const msg = $('editorMsg'); msg.textContent = '测试中…';
-  const body = { provider: $('e_provider').value, model: $('e_model').value.trim(), baseUrl: $('e_base').value.trim() || state.providers[$('e_provider').value]?.baseUrl, key: $('e_key').value.trim() };
-  const { j } = await postJSON('/api/test', body);
-  msg.textContent = j.ok ? '✅ 连接正常' : (j.error || '连接失败');
+  const body = { name: $('e_name').value.trim(), description: $('e_desc').value.trim(), persona: $('e_persona').value };
+  const slug = $('e_slug').value;
+  let r = slug ? await postJSON(`/api/profiles/${slug}`, body) : await postJSON('/api/profiles', body);
+  const savedSlug = slug || r.j.slug;
+  if (r.j.ok || savedSlug) { await postJSON(`/api/profiles/${savedSlug}/claude-md`, { content: $('e_claude').value }); msg.textContent = '✅ 已保存'; $('profileEditor').classList.add('hidden'); loadProfiles(); }
+  else msg.textContent = r.j.error || '保存失败';
 });
 
-// ---------- launch / exit ----------
+// ---------- accounts (dev page: delete only) ----------
+async function loadAccounts() {
+  const { j } = await jget('/api/session');
+  state.users = j.users || [];
+  const box = $('accountList');
+  box.innerHTML = '';
+  for (const u of state.users) {
+    const row = document.createElement('div');
+    row.className = 'list-item';
+    row.innerHTML = `<div><b>${u}${u === state.username ? '（当前）' : ''}</b></div>`;
+    if (u !== state.username) {
+      const b = document.createElement('button');
+      b.className = 'btn danger small'; b.textContent = '删除账号';
+      b.onclick = async () => {
+        if (!confirm(`删除账号「${u}」？其全部档案/密钥数据将一并删除，不可恢复。`)) return;
+        await postJSON(`/api/users/${encodeURIComponent(u)}/delete`, {});
+        loadAccounts();
+      };
+      row.appendChild(b);
+    }
+    box.appendChild(row);
+  }
+}
+
+// ---------- system / ollama ----------
+async function loadSystem() {
+  const { j } = await jget('/api/system');
+  $('sysInfo').textContent = `Node ${j.node} · 数据目录 ${j.dataDir} · 版本 ${j.version}`;
+  refreshOllama();
+}
+async function refreshOllama() {
+  const { j } = await jget('/api/system');
+  const o = j.ollama || {};
+  $('ollamaInfo').textContent = o.online ? `Ollama 在线 · ${(o.models || []).map((m) => m.name).join('、') || '无模型'}` : o.installed ? '已安装便携 Ollama，未运行。' : '未安装便携 Ollama。';
+}
+$('btnOllamaStart').addEventListener('click', async () => { const { j } = await postJSON('/api/local', { action: 'start' }); alert(j.ok ? '已启动' : (j.error || '启动失败')); refreshOllama(); });
+$('btnOllamaStop').addEventListener('click', async () => { const { j } = await postJSON('/api/local', { action: 'stop' }); alert(j.ok ? '已停止' : (j.error || '停止失败')); refreshOllama(); });
+
+// ---------- launch / logout / exit ----------
 $('btnLaunch').addEventListener('click', async () => {
-  const slug = $('profileSelect').value || state.active;
-  if (!slug) { alert('请先创建并选择档案'); return; }
-  const { j } = await postJSON('/api/launch', { slug });
-  if (!j.ok) alert(j.error || '启动失败（请先安装引擎）');
+  const { j } = await postJSON('/api/launch', { slug: '__active__' });
+  if (!j.ok) alert(j.error || '启动失败（请先配置 API 密钥并激活档案）');
 });
-$('btnInstall').addEventListener('click', installEngine);
-$('btnInstallBig').addEventListener('click', installEngine);
-$('btnRollback').addEventListener('click', rollbackEngine);
-$('btnExit').addEventListener('click', async () => {
-  await postJSON('/api/exit', {});
-  window.location.href = '/exit.html?done=1';
+$('logout').addEventListener('click', async () => { await fetch('/api/logout', { method: 'POST' }); window.location.href = '/login.html'; });
+$('btnExitWipe').addEventListener('click', async () => {
+  if (!confirm('将删除本机残留与全部账号/档案/密钥数据，确定退出？')) return;
+  await postJSON('/api/exit', { mode: 'wipe' });
+  window.location.href = '/exit.html?mode=wipe';
 });
-$('logout').addEventListener('click', async () => {
-  await fetch('/api/logout', { method: 'POST' });
-  window.location.href = '/login.html';
+$('btnExitKeep').addEventListener('click', async () => {
+  if (!confirm('保留本次在本机的全部更改（不清本机），清除其余全部数据并退出？')) return;
+  await postJSON('/api/exit', { mode: 'keepHost' });
+  window.location.href = '/exit.html?mode=keepHost';
 });
 
 // ---------- password ----------
@@ -331,38 +406,12 @@ $('btnPwdOk').addEventListener('click', async () => {
   else { msg.style.color = '#dc2626'; msg.textContent = j.error || '修改失败'; }
 });
 
-// ---------- system / ollama ----------
-async function loadSystem() {
-  const { j } = await jget('/api/system');
-  $('sysInfo').textContent = `Node ${j.node} · 数据目录 ${j.dataDir} · 版本 ${j.version}`;
-  refreshOllama();
-}
-async function refreshOllama() {
-  const { j } = await jget('/api/system');
-  const o = j.ollama || {};
-  $('ollamaInfo').textContent = o.online
-    ? `Ollama 在线 · ${(o.models || []).map((m) => m.name).join('、') || '无模型'}`
-    : o.installed ? '已安装便携 Ollama，未运行。' : '未安装便携 Ollama。';
-}
-$('btnOllamaStart').addEventListener('click', async () => {
-  const { j } = await postJSON('/api/local', { action: 'start' });
-  alert(j.ok ? '已启动' : (j.error || '启动失败'));
-  refreshOllama();
-});
-$('btnOllamaStop').addEventListener('click', async () => {
-  const { j } = await postJSON('/api/local', { action: 'stop' });
-  alert(j.ok ? '已停止' : (j.error || '停止失败'));
-  refreshOllama();
-});
-
 // ---------- init ----------
 (async () => {
   if (!(await guard())) return;
-  await loadProfiles();
-  await loadEngine();
-  await loadSystem();
-  // poll engine status every 6s so install completion is reflected
-  setInterval(() => { jget('/api/runtime').then(({ j }) => { $('engineBadge').textContent = j.installed ? `已安装 v${j.version}` : '未安装'; }); }, 6000);
+  await Promise.all([loadApi(), loadProfiles(), loadAccounts(), loadSystem()]);
+  await checkEngine();
+  setInterval(() => { jget('/api/engine/check').then(({ j }) => { $('engineBadge').textContent = j.installed ? `v${j.version}` : '未安装'; }); }, 6000);
 })();
 </script>
 </body>
