@@ -106,8 +106,9 @@ try {
 
   const pdir = path.join(DATA_DIR, 'users', 'alice', 'personas', 'dailyqa');
   const settings = JSON.parse(fs.readFileSync(path.join(pdir, 'settings.json'), 'utf8'));
-  assert(settings.systemPrompt === '你是测试助手。' && settings.env?.ANTHROPIC_MODEL === 'sonnet', 'mainstream settings.json generated (persona + active API env)');
-  assert(fs.existsSync(path.join(pdir, 'CLAUDE.md')), 'CLAUDE.md seeded');
+  assert(!('systemPrompt' in settings) && settings.env?.ANTHROPIC_MODEL === 'sonnet', 'settings.json carries agent env only (no unsupported systemPrompt)');
+  const claudeMd = fs.readFileSync(path.join(pdir, 'CLAUDE.md'), 'utf8');
+  assert(claudeMd.includes('你是测试助手。'), 'persona content stored in CLAUDE.md (native engine entry)');
 
   // ---- engine: check (step 1) reports not installed; launch works ----
   r = await req('/api/engine/check');

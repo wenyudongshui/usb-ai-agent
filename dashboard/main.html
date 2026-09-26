@@ -102,15 +102,9 @@
           <div class="field"><label>描述</label><input id="e_desc"></div>
         </div>
         <div class="form-row">
-          <div class="field"><label>人设 Prompt（可手写或拖入文件填充）</label>
-            <textarea id="e_persona" rows="3" data-drop="persona"></textarea>
-            <div class="dropzone" data-drop-target="persona">拖入文件填充</div>
-          </div>
-        </div>
-        <div class="form-row">
-          <div class="field"><label>CLAUDE.md（可手写或拖入文件填充）</label>
-            <textarea id="e_claude" rows="5" data-drop="claude"></textarea>
-            <div class="dropzone" data-drop-target="claude">拖入文件填充</div>
+          <div class="field"><label>人格内容（写入 CLAUDE.md，可手写或拖入文件填充；名称/描述仅供选择，不注入）</label>
+            <textarea id="e_claude" rows="6" data-drop="claude" placeholder="# 人格与规则&#10;你是……"></textarea>
+            <div class="dropzone" data-drop-target="claude">拖入文件填充（仅填充 CLAUDE.md）</div>
           </div>
         </div>
         <div class="form-row">
@@ -299,26 +293,26 @@ async function activateProfile(slug) {
   loadPersonas();
 }
 function resetEditor() {
-  $('e_slug').value = ''; $('e_name').value = $('e_desc').value = $('e_persona').value = $('e_claude').value = ''; $('editorMsg').textContent = '';
+  $('e_slug').value = ''; $('e_name').value = $('e_desc').value = $('e_claude').value = ''; $('editorMsg').textContent = '';
 }
 $('btnNewPersona').addEventListener('click', () => { resetEditor(); $('personaEditor').classList.remove('hidden'); });
 $('btnCancelEditor').addEventListener('click', () => $('personaEditor').classList.add('hidden'));
 async function openEditor(slug) {
   const { j: p } = await jget(`/api/personas/${slug}`);
-  resetEditor(); $('e_slug').value = slug; $('e_name').value = p.name || ''; $('e_desc').value = p.description || ''; $('e_persona').value = p.persona || '';
+  resetEditor(); $('e_slug').value = slug; $('e_name').value = p.name || ''; $('e_desc').value = p.description || '';
   const { j: md } = await jget(`/api/personas/${slug}/claude-md`); $('e_claude').value = md.content || '';
   $('personaEditor').classList.remove('hidden');
 }
 $('btnSavePersona').addEventListener('click', async () => {
   const msg = $('editorMsg'); msg.textContent = '保存中…';
-  const body = { name: $('e_name').value.trim(), description: $('e_desc').value.trim(), persona: $('e_persona').value };
+  const body = { name: $('e_name').value.trim(), description: $('e_desc').value.trim(), persona: $('e_claude').value };
   const slug = $('e_slug').value;
   let r = slug ? await postJSON(`/api/personas/${slug}`, body) : await postJSON('/api/personas', body);
   const saved = slug || r.j.slug;
   if (r.j.ok || saved) { await postJSON(`/api/personas/${saved}/claude-md`, { content: $('e_claude').value }); msg.textContent = '已保存'; $('personaEditor').classList.add('hidden'); loadPersonas(); }
   else msg.textContent = r.j.error || '保存失败';
 });
-// drag-drop fill for persona / CLAUDE.md textareas
+// drag-drop fill for the CLAUDE.md textarea
 function wireDrop(target, textareaId) {
   const dzEl = document.querySelector(`[data-drop-target="${target}"]`);
   if (!dzEl) return;
@@ -331,7 +325,6 @@ function wireDrop(target, textareaId) {
     if (f) ta.value = await f.text();
   });
 }
-wireDrop('persona', 'e_persona');
 wireDrop('claude', 'e_claude');
 
 // ============ ④ 运行模式 ============
