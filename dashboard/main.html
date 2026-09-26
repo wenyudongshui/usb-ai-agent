@@ -3,115 +3,120 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>USB AI Agent · 管理控制台</title>
+<title>USB AI Agent</title>
 <link rel="stylesheet" href="/styles.css">
 <style>
-  .dropzone { border:2px dashed #9ca3af; border-radius:10px; padding:16px; text-align:center; color:#6b7280; cursor:pointer; font-size:13px; transition:all .15s; }
+  .dropzone { border:2px dashed #9ca3af; border-radius:10px; padding:12px; text-align:center; color:#6b7280; cursor:pointer; font-size:12px; transition:all .15s; }
   .dropzone.over { border-color:#2e74b5; background:#eff6ff; color:#1e40af; }
   .choose { display:flex; flex-wrap:wrap; gap:10px; }
-  .choose-item { flex:1; min-width:200px; border:2px solid #e5e7eb; border-radius:12px; padding:12px 14px; cursor:pointer; background:#fff; }
+  .choose-item { flex:1; min-width:200px; border:2px solid #e5e7eb; border-radius:12px; padding:10px 12px; cursor:pointer; background:#fff; }
   .choose-item.sel { border-color:#2e74b5; background:#eff6ff; }
   .choose-item .nm { font-weight:600; font-size:14px; }
   .choose-item .dt { color:#6b7280; font-size:12px; margin-top:4px; }
   .choose-item .ops { margin-top:8px; display:flex; gap:6px; }
-  .exitbtn { flex:1; padding:16px; border:none; border-radius:12px; font-size:14px; color:#fff; cursor:pointer; }
-  .exitbtn.wipe { background:#dc2626; }
-  .exitbtn.keep { background:#b45309; }
-  .steptag { font-size:12px; color:#6b7280; margin:0 0 4px; }
+  .hint { font-size:12px; color:#6b7280; }
 </style>
 </head>
 <body>
 <header>
-  <h1>🛠️ USB AI Agent</h1>
+  <h1>USB AI Agent</h1>
   <span id="userBadge" class="badge"></span>
   <div class="spacer"></div>
   <button id="btnPwd">修改密码</button>
+  <button id="btnDelAccount">删除账号</button>
+  <button id="btnExit">安全退出</button>
   <button id="logout">退出登录</button>
 </header>
 
 <main>
-  <div id="unclean" class="banner warn hidden">检测到上次为非正常退出，已自动补清理本机残留。</div>
+  <div id="unclean" class="banner warn hidden">上次非正常退出，已自动补清理本机残留。</div>
 
-  <h2 style="font-size:16px;margin:0 0 12px">启动流程 · 前置环境检查 → 选择智能体 → 选择工作人格 → 运行模式</h2>
-
-  <!-- ① 环境检查（先检查，后安装） -->
+  <!-- ① 环境检查 -->
   <section class="panel">
-    <div class="steptag">步骤 1 / 4</div>
-    <h2>🖥️ 前置环境检查 <span id="engineBadge" class="muted"></span></h2>
+    <div class="steptag">1 / 4 · 环境检查</div>
+    <h2>Claude Code 引擎 <span id="engineBadge" class="muted"></span></h2>
     <div class="body">
       <div class="form-row">
-        <button class="btn" id="btnCheck">① 检查是否安装 / 有更新</button>
-        <button class="btn" id="btnInstall" disabled>② 确认安装 / 更新引擎</button>
-        <button class="btn ghost" id="btnRollback">回滚上一版本</button>
+        <button class="btn" id="btnCheck">检查</button>
+        <button class="btn" id="btnInstall" disabled>确认安装/更新</button>
+        <button class="btn ghost" id="btnRollback">回滚</button>
         <span id="engineMsg" class="muted" style="align-self:center"></span>
       </div>
-      <div id="engineInfo" class="muted"></div>
+      <div id="engineInfo" class="hint"></div>
       <details>
-        <summary class="muted" style="cursor:pointer;font-size:13px">安装日志（尾部）</summary>
-        <pre id="engineLog" class="muted" style="white-space:pre-wrap;font-size:12px;max-height:180px;overflow:auto"></pre>
+        <summary class="hint" style="cursor:pointer">安装日志</summary>
+        <pre id="engineLog" class="muted" style="white-space:pre-wrap;font-size:12px;max-height:160px;overflow:auto"></pre>
       </details>
     </div>
   </section>
 
-  <!-- ② 选择智能体 -->
+  <!-- ② 智能体 -->
   <section class="panel">
-    <div class="steptag">步骤 2 / 4</div>
-    <h2>🤖 选择智能体 <span class="muted">（一个账号可绑定多个智能体，点选为当前）</span></h2>
+    <div class="steptag">2 / 4 · 选择智能体</div>
+    <h2>智能体</h2>
     <div class="body">
       <div class="choose" id="agentList"></div>
       <div class="form-row mt">
-        <button class="btn" id="btnToggleAddAgent">＋ 手动新增智能体</button>
-        <span class="muted" style="align-self:center">或把 CC Switch 的 settings.json 拖到下方导入</span>
+        <button class="btn" id="btnToggleAddAgent">＋ 新增</button>
+        <span class="hint" style="align-self:center">或拖入 CC Switch 的 settings.json 导入</span>
       </div>
-      <div class="dropzone mt" id="dropZone">将 <b>CC Switch</b> 导出的 <b>settings.json</b> 拖到这里（或点击选择文件）自动识别导入</div>
+      <div class="dropzone" id="dropZone">拖入 settings.json 自动识别导入（或点击选择）</div>
       <input type="file" id="fileInput" accept=".json,application/json" class="hidden">
 
       <div id="agentForm" class="hidden mt">
         <div class="form-row">
           <div class="field"><label>名称</label><input id="k_name" placeholder="例如：DeepSeek"></div>
-          <div class="field"><label>提供商</label><select id="k_provider"></select></div>
+          <div class="field"><label>API 地址</label><input id="k_base" placeholder="https://..."></div>
         </div>
         <div class="form-row">
-          <div class="field"><label>模型名</label><input id="k_model" placeholder="deepseek-chat / claude-sonnet-4 ..."></div>
-          <div class="field"><label>API 地址（可留空用默认）</label><input id="k_base" placeholder="https://api.anthropic.com"></div>
-          <div class="field" style="min-width:160px"><label>API 密钥</label><input id="k_key" type="password" placeholder="sk-... 或 ollama"></div>
+          <div class="field"><label>API 密钥</label><input id="k_key" type="password" placeholder="sk-..."></div>
+          <div class="field"><label>模型</label><input id="k_model" placeholder="deepseek-chat"></div>
+          <div class="field" style="min-width:180px"><label>端点类型</label><select id="k_transport">
+            <option value="anthropic">Anthropic 兼容直连</option>
+            <option value="openai">OpenAI 兼容（适配器）</option>
+          </select></div>
         </div>
         <div class="form-row">
-          <button class="btn" id="btnAddKey">保存智能体</button>
-          <span id="apiMsg" class="muted" style="align-self:center"></span>
+          <button class="btn" id="btnAddKey">保存</button>
+          <span id="apiMsg" class="hint" style="align-self:center"></span>
         </div>
       </div>
     </div>
   </section>
 
-  <!-- ③ 选择工作人格 -->
+  <!-- ③ 工作人格 -->
   <section class="panel">
-    <div class="steptag">步骤 3 / 4</div>
-    <h2>🧠 选择工作人格 <span class="muted">（只需名称 / 描述 / 人设 / CLAUDE.md，点选为当前）</span></h2>
+    <div class="steptag">3 / 4 · 选择工作人格</div>
+    <h2>工作人格</h2>
     <div class="body">
       <div class="choose" id="personaList"></div>
       <div class="form-row mt">
-        <button class="btn" id="btnNewPersona">＋ 新增工作人格</button>
-        <span class="muted" style="align-self:center">每个工作人格 = 独立 settings.json + CLAUDE.md（主流 Claude Code 格式）</span>
+        <button class="btn" id="btnNewPersona">＋ 新增</button>
+        <span class="hint" style="align-self:center">每个工作人格一套 settings.json + CLAUDE.md</span>
       </div>
 
       <div id="personaEditor" class="hidden mt">
-        <h3 id="editorTitle" style="font-size:14px;margin:0 0 12px">新建工作人格</h3>
         <input type="hidden" id="e_slug">
         <div class="form-row">
-          <div class="field"><label>人格名称（工作对象）</label><input id="e_name" placeholder="例如：日常问答"></div>
-          <div class="field"><label>描述</label><input id="e_desc" placeholder="可选"></div>
+          <div class="field"><label>名称</label><input id="e_name" placeholder="例如：日常问答"></div>
+          <div class="field"><label>描述</label><input id="e_desc"></div>
         </div>
         <div class="form-row">
-          <div class="field"><label>人设（systemPrompt，写入 settings.json）</label><textarea id="e_persona" rows="3" placeholder="为 Claude Code 设定角色/输出风格"></textarea></div>
+          <div class="field"><label>人设 Prompt（可手写或拖入文件填充）</label>
+            <textarea id="e_persona" rows="3" data-drop="persona"></textarea>
+            <div class="dropzone" data-drop-target="persona">拖入文件填充</div>
+          </div>
         </div>
         <div class="form-row">
-          <div class="field"><label>CLAUDE.md（该工作对象的习惯/规则，启动时自动加载）</label><textarea id="e_claude" rows="5" placeholder="# 工作对象与习惯&#10;..."></textarea></div>
+          <div class="field"><label>CLAUDE.md（可手写或拖入文件填充）</label>
+            <textarea id="e_claude" rows="5" data-drop="claude"></textarea>
+            <div class="dropzone" data-drop-target="claude">拖入文件填充</div>
+          </div>
         </div>
         <div class="form-row">
-          <button type="button" class="btn" id="btnSavePersona">保存人格</button>
+          <button type="button" class="btn" id="btnSavePersona">保存</button>
           <button type="button" class="btn ghost" id="btnCancelEditor">取消</button>
-          <span id="editorMsg" class="muted" style="align-self:center"></span>
+          <span id="editorMsg" class="hint" style="align-self:center"></span>
         </div>
       </div>
     </div>
@@ -119,49 +124,36 @@
 
   <!-- ④ 运行模式 -->
   <section class="panel">
-    <div class="steptag">步骤 4 / 4</div>
-    <h2>🚀 运行模式 <span class="muted">二选一</span></h2>
+    <div class="steptag">4 / 4 · 运行模式</div>
+    <h2>运行模式</h2>
     <div class="body">
       <div class="choose">
         <div class="choose-item" id="modeCli" data-mode="cli" onclick="pickMode('cli')">
-          <div class="nm">⌨️ 命令行模式</div>
-          <div class="dt">在 Claude Code 终端里对话/编码（工具/权限/会话能力最完整）</div>
+          <div class="nm">命令行模式</div>
+          <div class="dt">Claude Code 终端，能力最完整</div>
         </div>
         <div class="choose-item" id="modeGui" data-mode="dialog" onclick="pickMode('dialog')">
-          <div class="nm">💬 对话框模式</div>
-          <div class="dt">在网页对话框里对话（流式输出 + 工具审批，更直观）</div>
+          <div class="nm">对话框模式</div>
+          <div class="dt">网页聊天，流式输出 + 工具审批</div>
         </div>
       </div>
       <div class="form-row mt">
-        <button class="btn" id="btnLaunch">启动当前模式</button>
-        <span id="launchMsg" class="muted" style="align-self:center"></span>
+        <button class="btn" id="btnLaunch">启动</button>
+        <span id="launchMsg" class="hint" style="align-self:center"></span>
       </div>
     </div>
   </section>
 
-  <!-- 账号 / 系统 / 退出 -->
+  <!-- 系统 -->
   <section class="panel">
-    <h2>👥 账号管理 <span class="muted">（禁止读取密码，允许删除；删除时级联清除该账号全部智能体与工作人格）</span></h2>
-    <div class="body" id="accountList"></div>
-  </section>
-
-  <section class="panel">
-    <h2>⚙️ 系统 · 本地模型</h2>
+    <h2>本地模型 / 系统</h2>
     <div class="body">
-      <div id="sysInfo" class="muted"></div>
+      <div id="sysInfo" class="hint"></div>
       <div class="form-row mt">
-        <button class="btn" id="btnOllamaStart">启动本地 Ollama</button>
-        <button class="btn ghost" id="btnOllamaStop">停止（本程序启动的）</button>
-        <span id="ollamaInfo" class="muted" style="align-self:center"></span>
+        <button class="btn" id="btnOllamaStart">启动 Ollama</button>
+        <button class="btn ghost" id="btnOllamaStop">停止</button>
+        <span id="ollamaInfo" class="hint" style="align-self:center"></span>
       </div>
-    </div>
-  </section>
-
-  <section class="panel">
-    <h2>🚪 退出</h2>
-    <div class="body form-row">
-      <button class="exitbtn wipe" id="btnExitWipe">1. 全部删除退出</button>
-      <button class="exitbtn keep" id="btnExitKeep">2. 保留本次在本机的全部更改，其余数据全部清除</button>
     </div>
   </section>
 </main>
@@ -169,7 +161,7 @@
 <div id="pwdModal" class="hidden card" style="position:fixed;inset:0;margin:auto;width:340px;height:fit-content;z-index:10;box-shadow:0 10px 40px rgba(0,0,0,.25)">
   <h2 style="margin:0 0 14px;font-size:16px">修改密码</h2>
   <input type="password" id="p_old" placeholder="原密码" style="width:100%;padding:9px 12px;margin-bottom:12px;border:1px solid #d1d5db;border-radius:8px">
-  <input type="password" id="p_new" placeholder="新密码（8位以上，含大小写与数字）" style="width:100%;padding:9px 12px;margin-bottom:12px;border:1px solid #d1d5db;border-radius:8px">
+  <input type="password" id="p_new" placeholder="新密码" style="width:100%;padding:9px 12px;margin-bottom:12px;border:1px solid #d1d5db;border-radius:8px">
   <input type="password" id="p_new2" placeholder="确认新密码" style="width:100%;padding:9px 12px;margin-bottom:12px;border:1px solid #d1d5db;border-radius:8px">
   <div class="form-row">
     <button id="btnPwdOk" class="btn">确定</button>
@@ -180,7 +172,7 @@
 
 <script>
 const $ = (id) => document.getElementById(id);
-const state = { providers: {}, agents: [], personas: [], users: [], username: null, runMode: 'cli' };
+const state = { agents: [], personas: [], username: null, runMode: 'cli' };
 
 async function jget(url) { const r = await fetch(url); return { r, j: await r.json().catch(() => ({})) }; }
 async function postJSON(url, body, method = 'POST') {
@@ -191,39 +183,32 @@ async function postJSON(url, body, method = 'POST') {
 async function guard() {
   const { j } = await jget('/api/session');
   if (!j.authed) { window.location.href = '/login.html'; return false; }
-  state.username = j.username;
-  $('userBadge').textContent = j.username;
+  state.username = j.username; $('userBadge').textContent = j.username;
   if (j.unclean) $('unclean').classList.remove('hidden');
   return true;
 }
 
-// ================= ① 环境检查 =================
+// ============ ① 环境检查 ============
 async function checkEngine() {
   const { j } = await jget('/api/engine/check');
-  if (j.installed && !j.updateAvailable) {
-    $('engineInfo').textContent = `已安装最新 v${j.version}，无需更新。`;
-    $('btnInstall').textContent = '② 确认更新引擎'; $('btnInstall').disabled = true;
-  } else if (j.updateAvailable) {
-    $('engineInfo').textContent = `已安装 v${j.version}，可更新至 v${j.pinned}。`;
-    $('btnInstall').textContent = '② 确认更新引擎'; $('btnInstall').disabled = false;
-  } else {
-    $('engineInfo').textContent = `未安装。可安装固定版本 ${j.pinned}（约 300MB，需联网）。`;
-    $('btnInstall').textContent = '② 确认安装引擎'; $('btnInstall').disabled = false;
-  }
+  if (j.installed && !j.updateAvailable) { $('engineInfo').textContent = `已安装 v${j.version}`; $('btnInstall').disabled = true; }
+  else if (j.updateAvailable) { $('engineInfo').textContent = `v${j.version} → v${j.pinned}`; $('btnInstall').disabled = false; }
+  else { $('engineInfo').textContent = `未安装（固定版本 ${j.pinned}）`; $('btnInstall').disabled = false; }
   $('engineBadge').textContent = j.installed ? `v${j.version}` : '未安装';
   const log = await jget('/api/engine/log');
   $('engineLog').textContent = log.j.log || '（暂无日志）';
+  return j;
 }
 $('btnCheck').addEventListener('click', () => { $('engineMsg').textContent = '检查中…'; checkEngine(); });
 $('btnInstall').addEventListener('click', async () => {
-  const msg = $('engineMsg'); msg.textContent = '后台安装中…约 300MB（日志可见进度）';
+  const msg = $('engineMsg'); msg.textContent = '后台安装中…';
   const { j } = await postJSON('/api/engine/install', { action: 'install' });
-  if (!j.ok) { msg.textContent = j.error || '启动安装失败'; return; }
-  msg.textContent = '安装已启动…（完成后状态自动更新）';
+  if (!j.ok) { msg.textContent = j.error || '失败'; return; }
+  msg.textContent = '安装中…完成后自动更新';
   const iv = setInterval(async () => {
     const { j: log } = await jget('/api/engine/log'); $('engineLog').textContent = log.log || '';
     const { j: st } = await jget('/api/engine/check');
-    if (st.installed && !st.updateAvailable) { clearInterval(iv); msg.textContent = '✅ 安装完成'; checkEngine(); }
+    if (st.installed && !st.updateAvailable) { clearInterval(iv); msg.textContent = '完成'; checkEngine(); }
   }, 4000);
 });
 $('btnRollback').addEventListener('click', async () => {
@@ -231,46 +216,42 @@ $('btnRollback').addEventListener('click', async () => {
   $('engineMsg').textContent = j.ok ? '已回滚' : (j.error || '失败'); checkEngine();
 });
 
-// ================= ② 智能体 =================
+// ============ ② 智能体 ============
 async function loadAgents() {
   const { j } = await jget('/api/agents');
   state.agents = j.configs || [];
-  state.providers = j.providers || {};
-  fillProviderSelect();
   renderAgents();
-}
-function fillProviderSelect() {
-  const sel = $('k_provider'); sel.innerHTML = '';
-  for (const [k, v] of Object.entries(state.providers)) { const o = document.createElement('option'); o.value = k; o.textContent = `${v.name}${v.local ? ' · 本地' : ''}`; sel.appendChild(o); }
 }
 function renderAgents() {
   const box = $('agentList'); box.innerHTML = '';
-  if (!state.agents.length) { box.innerHTML = '<div class="muted">（暂无智能体，点「＋ 手动新增」或拖入 settings.json）</div>'; return; }
+  if (!state.agents.length) { box.innerHTML = '<div class="hint">（暂无智能体）</div>'; return; }
   for (const a of state.agents) {
     const el = document.createElement('div');
     el.className = 'choose-item' + (a.active ? ' sel' : '');
-    el.innerHTML = `<div class="nm">${a.active ? '✅ ' : ''}${a.name}</div>
-      <div class="dt">${a.provider} · ${a.model}${a.hasKey ? ' · ' + a.keyMasked : ''}${a.imported ? ' · [导入]' : ''}</div>
-      <div class="dt">${a.baseUrl}</div>
+    el.innerHTML = `<div class="nm">${a.active ? '✓ ' : ''}${a.name}</div>
+      <div class="dt">${a.model}${a.hasKey ? ' · ' + a.keyMasked : ''}${a.imported ? ' · [导入]' : ''}</div>
       <div class="ops">
         ${a.active ? '' : '<button class="btn small" data-role="sel">设为当前</button>'}
         <button class="btn ghost small" data-role="test">测试</button>
         <button class="btn danger small" data-role="del">删除</button>
       </div>`;
     el.querySelector('[data-role="sel"]')?.addEventListener('click', async (e) => { e.stopPropagation(); await postJSON(`/api/agents/${a.id}/activate`, {}); loadAgents(); });
-    el.querySelector('[data-role="test"]')?.addEventListener('click', async (e) => { e.stopPropagation(); const { j } = await postJSON(`/api/agents/${a.id}/test`, {}); alert(j.ok ? '连接正常' : (j.error || '连接失败')); });
+    el.querySelector('[data-role="test"]')?.addEventListener('click', async (e) => { e.stopPropagation(); const { j } = await postJSON(`/api/agents/${a.id}/test`, {}); alert(j.ok ? '连接正常' : (j.error || '失败')); });
     el.querySelector('[data-role="del"]')?.addEventListener('click', async (e) => { e.stopPropagation(); if (confirm(`删除智能体「${a.name}」？`)) { await postJSON(`/api/agents/${a.id}`, {}, 'DELETE'); loadAgents(); } });
     el.onclick = async () => { if (!a.active) { await postJSON(`/api/agents/${a.id}/activate`, {}); loadAgents(); } };
     box.appendChild(el);
   }
 }
 $('btnToggleAddAgent').addEventListener('click', () => $('agentForm').classList.toggle('hidden'));
-$('k_provider').addEventListener('change', () => { const v = state.providers[$('k_provider').value]; if (v) { $('k_base').placeholder = v.baseUrl; if (!$('k_base').value) $('k_base').value = v.baseUrl; } });
 $('btnAddKey').addEventListener('click', async () => {
   const msg = $('apiMsg'); msg.textContent = '保存中…';
-  const { j } = await postJSON('/api/agents', { name: $('k_name').value.trim(), provider: $('k_provider').value, model: $('k_model').value.trim(), baseUrl: $('k_base').value.trim(), key: $('k_key').value.trim() });
+  const { j } = await postJSON('/api/agents', {
+    name: $('k_name').value.trim(), baseUrl: $('k_base').value.trim(),
+    apiKey: $('k_key').value.trim(), model: $('k_model').value.trim(),
+    transport: $('k_transport').value,
+  });
   if (!j.ok) { msg.textContent = j.error || '保存失败'; return; }
-  msg.textContent = '✅ 已保存'; $('k_name').value = $('k_model').value = $('k_key').value = ''; loadAgents();
+  msg.textContent = '已保存'; $('k_name').value = $('k_base').value = $('k_key').value = $('k_model').value = ''; loadAgents();
 });
 const dz = $('dropZone');
 dz.addEventListener('click', () => $('fileInput').click());
@@ -282,11 +263,11 @@ async function importFile(file) {
   const text = await file.text();
   $('apiMsg').textContent = '导入中…';
   const { j } = await postJSON('/api/agents/import', { content: text });
-  $('apiMsg').textContent = j.ok ? `✅ 已导入 ${j.ids?.length || 0} 个智能体` : (j.error || '导入失败');
+  $('apiMsg').textContent = j.ok ? `已导入 ${j.ids?.length || 0} 个` : (j.error || '导入失败');
   loadAgents();
 }
 
-// ================= ③ 工作人格 =================
+// ============ ③ 工作人格 ============
 async function loadPersonas() {
   const { j } = await jget('/api/personas');
   state.personas = j.profiles || [];
@@ -294,34 +275,37 @@ async function loadPersonas() {
 }
 function renderPersonas() {
   const box = $('personaList'); box.innerHTML = '';
-  if (!state.personas.length) { box.innerHTML = '<div class="muted">（暂无工作人格，点「＋ 新增工作人格」创建）</div>'; return; }
+  if (!state.personas.length) { box.innerHTML = '<div class="hint">（暂无工作人格）</div>'; return; }
   for (const p of state.personas) {
     const el = document.createElement('div');
     el.className = 'choose-item' + (p.active ? ' sel' : '');
-    el.innerHTML = `<div class="nm">${p.active ? '✅ ' : ''}${p.name}</div>
-      <div class="dt">${p.personaPreview || p.description || ''}</div>
+    el.innerHTML = `<div class="nm">${p.active ? '✓ ' : ''}${p.name}</div>
+      <div class="dt">${p.personaPreview || ''}</div>
       <div class="ops">
         ${p.active ? '' : '<button class="btn small" data-role="sel">设为当前</button>'}
         <button class="btn ghost small" data-role="edit">编辑</button>
         <button class="btn danger small" data-role="del">删除</button>
       </div>`;
-    el.querySelector('[data-role="sel"]')?.addEventListener('click', async (e) => { e.stopPropagation(); const { j } = await postJSON(`/api/personas/${p.slug}/activate`, {}); $('editorMsg').textContent = j.ok ? '✅ 已激活' : (j.error || '激活失败'); loadPersonas(); });
+    el.querySelector('[data-role="sel"]')?.addEventListener('click', async (e) => { e.stopPropagation(); await activateProfile(p.slug); });
     el.querySelector('[data-role="edit"]')?.addEventListener('click', (e) => { e.stopPropagation(); openEditor(p.slug); });
-    el.querySelector('[data-role="del"]')?.addEventListener('click', async (e) => { e.stopPropagation(); if (confirm(`删除工作人格「${p.name}」？`)) { await postJSON(`/api/personas/${p.slug}`, {}, 'DELETE'); loadPersonas(); } });
-    el.onclick = async () => { if (!p.active) { await postJSON(`/api/personas/${p.slug}/activate`, {}); loadPersonas(); } };
+    el.querySelector('[data-role="del"]')?.addEventListener('click', async (e) => { e.stopPropagation(); if (confirm(`删除「${p.name}」？`)) { await postJSON(`/api/personas/${p.slug}`, {}, 'DELETE'); loadPersonas(); } });
+    el.onclick = async () => { if (!p.active) await activateProfile(p.slug); };
     box.appendChild(el);
   }
 }
+async function activateProfile(slug) {
+  const { j } = await postJSON(`/api/personas/${slug}/activate`, {});
+  $('editorMsg').textContent = j.ok ? '已激活' : (j.error || '激活失败');
+  loadPersonas();
+}
 function resetEditor() {
-  $('e_slug').value = ''; $('editorTitle').textContent = '新建工作人格';
-  $('e_name').value = $('e_desc').value = $('e_persona').value = $('e_claude').value = ''; $('editorMsg').textContent = '';
+  $('e_slug').value = ''; $('e_name').value = $('e_desc').value = $('e_persona').value = $('e_claude').value = ''; $('editorMsg').textContent = '';
 }
 $('btnNewPersona').addEventListener('click', () => { resetEditor(); $('personaEditor').classList.remove('hidden'); });
 $('btnCancelEditor').addEventListener('click', () => $('personaEditor').classList.add('hidden'));
 async function openEditor(slug) {
   const { j: p } = await jget(`/api/personas/${slug}`);
-  resetEditor(); $('editorTitle').textContent = `编辑 · ${p.name}`;
-  $('e_slug').value = slug; $('e_name').value = p.name || ''; $('e_desc').value = p.description || ''; $('e_persona').value = p.persona || '';
+  resetEditor(); $('e_slug').value = slug; $('e_name').value = p.name || ''; $('e_desc').value = p.description || ''; $('e_persona').value = p.persona || '';
   const { j: md } = await jget(`/api/personas/${slug}/claude-md`); $('e_claude').value = md.content || '';
   $('personaEditor').classList.remove('hidden');
 }
@@ -331,11 +315,26 @@ $('btnSavePersona').addEventListener('click', async () => {
   const slug = $('e_slug').value;
   let r = slug ? await postJSON(`/api/personas/${slug}`, body) : await postJSON('/api/personas', body);
   const saved = slug || r.j.slug;
-  if (r.j.ok || saved) { await postJSON(`/api/personas/${saved}/claude-md`, { content: $('e_claude').value }); msg.textContent = '✅ 已保存'; $('personaEditor').classList.add('hidden'); loadPersonas(); }
+  if (r.j.ok || saved) { await postJSON(`/api/personas/${saved}/claude-md`, { content: $('e_claude').value }); msg.textContent = '已保存'; $('personaEditor').classList.add('hidden'); loadPersonas(); }
   else msg.textContent = r.j.error || '保存失败';
 });
+// drag-drop fill for persona / CLAUDE.md textareas
+function wireDrop(target, textareaId) {
+  const dzEl = document.querySelector(`[data-drop-target="${target}"]`);
+  if (!dzEl) return;
+  const ta = $(textareaId);
+  dzEl.addEventListener('click', () => ta.focus());
+  ['dragover', 'dragenter'].forEach((ev) => dzEl.addEventListener(ev, (e) => { e.preventDefault(); dzEl.classList.add('over'); }));
+  ['dragleave', 'drop'].forEach((ev) => dzEl.addEventListener(ev, (e) => { e.preventDefault(); dzEl.classList.remove('over'); }));
+  dzEl.addEventListener('drop', async (e) => {
+    const f = e.dataTransfer?.files?.[0];
+    if (f) ta.value = await f.text();
+  });
+}
+wireDrop('persona', 'e_persona');
+wireDrop('claude', 'e_claude');
 
-// ================= ④ 运行模式 =================
+// ============ ④ 运行模式 ============
 function pickMode(mode) {
   state.runMode = mode;
   $('modeCli').classList.toggle('sel', mode === 'cli');
@@ -346,53 +345,40 @@ $('btnLaunch').addEventListener('click', async () => {
   const msg = $('launchMsg'); msg.textContent = '启动中…';
   if (state.runMode === 'cli') {
     const { j } = await postJSON('/api/launch', { slug: '__active__' });
-    msg.textContent = j.ok ? '已在终端窗口启动（可关闭本页）' : (j.error || '启动失败');
+    msg.textContent = j.ok ? '终端已启动' : (j.error || '启动失败');
   } else {
     const { j } = await jget('/api/dialog/info');
-    if (!j.agent || !j.persona) { msg.textContent = '请先选择智能体与工作人格'; return; }
+    if (!j.agent || !j.persona) { msg.textContent = '请先设置智能体与工作人格'; return; }
     if (!j.engineInstalled) { msg.textContent = '请先安装引擎'; return; }
     window.location.href = '/dialog.html';
   }
 });
 
-// ================= 账号 / 系统 / 退出 =================
-async function loadAccounts() {
-  const { j } = await jget('/api/session');
-  state.users = j.users || [];
-  const box = $('accountList'); box.innerHTML = '';
-  for (const u of state.users) {
-    const row = document.createElement('div');
-    row.className = 'list-item';
-    row.innerHTML = `<div><b>${u}${u === state.username ? '（当前）' : ''}</b></div>`;
-    if (u !== state.username) {
-      const b = document.createElement('button'); b.className = 'btn danger small'; b.textContent = '删除账号';
-      b.onclick = async () => {
-        if (!confirm(`删除账号「${u}」？其下全部智能体、工作人格与数据将级联清除，不可恢复。`)) return;
-        await postJSON(`/api/users/${encodeURIComponent(u)}/delete`, {});
-        loadAccounts();
-      };
-      row.appendChild(b);
-    }
-    box.appendChild(row);
-  }
-}
+// ============ 系统 ============
 async function loadSystem() {
   const { j } = await jget('/api/system');
-  $('sysInfo').textContent = `Node ${j.node} · 数据目录 ${j.dataDir} · 版本 ${j.version}`;
+  $('sysInfo').textContent = `Node ${j.node} · ${j.dataDir}`;
   refreshOllama();
 }
 async function refreshOllama() {
   const { j } = await jget('/api/system');
   const o = j.ollama || {};
-  $('ollamaInfo').textContent = o.online ? `Ollama 在线 · ${(o.models || []).map((m) => m.name).join('、') || '无模型'}` : o.installed ? '已安装便携 Ollama，未运行。' : '未安装便携 Ollama。';
+  $('ollamaInfo').textContent = o.online ? 'Ollama 在线' : o.installed ? 'Ollama 已装未运行' : '未安装 Ollama';
 }
-$('btnOllamaStart').addEventListener('click', async () => { const { j } = await postJSON('/api/local', { action: 'start' }); alert(j.ok ? '已启动' : (j.error || '启动失败')); refreshOllama(); });
-$('btnOllamaStop').addEventListener('click', async () => { const { j } = await postJSON('/api/local', { action: 'stop' }); alert(j.ok ? '已停止' : (j.error || '停止失败')); refreshOllama(); });
-$('logout').addEventListener('click', async () => { await fetch('/api/logout', { method: 'POST' }); window.location.href = '/login.html'; });
-$('btnExitWipe').addEventListener('click', async () => { if (confirm('将删除本机残留与全部账号/智能体/人格/密钥数据，确定退出？')) { await postJSON('/api/exit', { mode: 'wipe' }); window.location.href = '/exit.html?mode=wipe'; } });
-$('btnExitKeep').addEventListener('click', async () => { if (confirm('保留本次在本机的全部更改（不清本机），清除其余全部数据并退出？')) { await postJSON('/api/exit', { mode: 'keepHost' }); window.location.href = '/exit.html?mode=keepHost'; } });
+$('btnOllamaStart').addEventListener('click', async () => { const { j } = await postJSON('/api/local', { action: 'start' }); alert(j.ok ? '已启动' : (j.error || '失败')); refreshOllama(); });
+$('btnOllamaStop').addEventListener('click', async () => { const { j } = await postJSON('/api/local', { action: 'stop' }); alert(j.ok ? '已停止' : (j.error || '失败')); refreshOllama(); });
 
-// ================= 密码 =================
+// ============ 账号 / 退出 ============
+$('btnExit').addEventListener('click', async () => { await postJSON('/api/exit', {}); window.location.href = '/exit.html'; });
+$('logout').addEventListener('click', async () => { await fetch('/api/logout', { method: 'POST' }); window.location.href = '/login.html'; });
+$('btnDelAccount').addEventListener('click', async () => {
+  if (!confirm(`删除账号「${state.username}」？其下全部智能体、工作人格与数据将级联删除，不可恢复。`)) return;
+  const { j } = await postJSON(`/api/users/${encodeURIComponent(state.username)}/delete`, {});
+  if (j.ok) { await fetch('/api/logout', { method: 'POST' }); window.location.href = '/login.html'; }
+  else alert(j.error || '删除失败');
+});
+
+// ============ 密码 ============
 $('btnPwd').addEventListener('click', () => $('pwdModal').classList.remove('hidden'));
 $('btnPwdCancel').addEventListener('click', () => $('pwdModal').classList.add('hidden'));
 $('btnPwdOk').addEventListener('click', async () => {
@@ -402,10 +388,10 @@ $('btnPwdOk').addEventListener('click', async () => {
   else { msg.style.color = '#dc2626'; msg.textContent = j.error || '修改失败'; }
 });
 
-// ================= init =================
+// ============ init ============
 (async () => {
   if (!(await guard())) return;
-  await Promise.all([loadAgents(), loadPersonas(), loadAccounts(), loadSystem()]);
+  await Promise.all([loadAgents(), loadPersonas(), loadSystem()]);
   await checkEngine();
   pickMode('cli');
   setInterval(() => { jget('/api/engine/check').then(({ j }) => { $('engineBadge').textContent = j.installed ? `v${j.version}` : '未安装'; }); }, 6000);

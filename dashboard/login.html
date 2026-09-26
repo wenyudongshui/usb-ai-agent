@@ -28,9 +28,9 @@
 <body>
 <div class="login-layout">
   <aside class="sidebar">
-    <h1>🔒 USB AI Agent</h1>
-    <div id="accountList"></div>
-    <div class="addbtn" id="btnAdd" title="新增账号">＋ 新增账号</div>
+    <h1>USB AI Agent</h1>
+    <div class="addbtn" id="btnAdd">＋ 新增账号</div>
+    <div id="accountList" class="hidden"></div>
   </aside>
 
   <div class="main-area">
@@ -81,6 +81,8 @@ async function postJSON(url, body) {
 
 function renderAccounts(selected) {
   const box = $('accountList');
+  // account selector is only shown when accounts exist
+  box.classList.toggle('hidden', users.length === 0);
   box.innerHTML = '';
   for (const u of users) {
     const el = document.createElement('div');

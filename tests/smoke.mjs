@@ -72,9 +72,16 @@ try {
   const mkFile = fs.readFileSync(path.join(DATA_DIR, 'users', 'alice', 'master.key.enc'), 'utf8');
   assert(!mkFile.includes(PASS) && mkFile.includes('"wrapped"'), 'password not stored in readable form');
 
+  // ---- persona activation WITHOUT an agent must fail and not set active ----
+  r = await req('/api/personas', { method: 'POST', body: { name: 'NoAgent' } });
+  assert(r.status === 200 && r.json.slug === 'noagent', 'create persona before any agent');
+  r = await req('/api/personas/noagent/activate', { method: 'POST', body: {} });
+  assert(r.status === 400, 'activate persona without agent rejected (rollback fix)');
+  await req('/api/personas/noagent', { method: 'DELETE' });
+
   // ---- API keys: manual + CC Switch import ----
-  r = await req('/api/agents', { method: 'POST', body: { name: 'Mock', provider: 'anthropic', model: 'sonnet', baseUrl: `http://127.0.0.1:${MOCK_PORT}`, key: 'sk-x' } });
-  assert(r.status === 200 && !!r.json.id, 'POST /api/agents manual ok');
+  r = await req('/api/agents', { method: 'POST', body: { name: 'Mock', baseUrl: `http://127.0.0.1:${MOCK_PORT}`, apiKey: 'sk-x', model: 'sonnet', transport: 'anthropic' } });
+  assert(r.status === 200 && !!r.json.id, 'POST /api/agents manual ok (minimal fields)');
 
   const ccSettings = JSON.stringify({ env: { ANTHROPIC_BASE_URL: 'https://api.deepseek.com/anthropic', ANTHROPIC_AUTH_TOKEN: 'sk-imported', ANTHROPIC_MODEL: 'deepseek-chat' } });
   r = await req('/api/agents/import', { method: 'POST', body: { content: ccSettings } });
@@ -119,7 +126,7 @@ try {
   await req('/api/users', { method: 'POST', body: { username: 'carol', password: PASS } });
   jar = '';
   await req('/api/login', { method: 'POST', body: { username: 'carol', password: PASS } });
-  await req('/api/agents', { method: 'POST', body: { provider: 'anthropic', model: 'sonnet', baseUrl: `http://127.0.0.1:${MOCK_PORT}`, key: 'sk-carol' } });
+  await req('/api/agents', { method: 'POST', body: { name: 'Carol', baseUrl: `http://127.0.0.1:${MOCK_PORT}`, apiKey: 'sk-carol', model: 'sonnet', transport: 'anthropic' } });
   await req('/api/personas', { method: 'POST', body: { name: 'CarolWork' } });
   assert(fs.existsSync(path.join(DATA_DIR, 'users', 'carol', 'agents.enc')), 'carol has encrypted agents.enc');
   assert(fs.existsSync(path.join(DATA_DIR, 'users', 'carol', 'personas')), 'carol has personas dir');
@@ -130,13 +137,12 @@ try {
   r = await req('/api/login', { method: 'POST', body: { username: 'alice', password: PASS } });
   assert(r.status === 200, 're-login as alice after carol deletion');
 
-  // ---- exit wipe: clears all app data + host residue, then stops ----
-  r = await req('/api/exit', { method: 'POST', body: { mode: 'wipe' } });
-  assert(r.status === 200 && r.json.mode === 'wipe', 'POST /api/exit wipe ok');
+  // ---- safe exit: cleans host residue, KEEPS all account data ----
+  r = await req('/api/exit', { method: 'POST', body: {} });
+  assert(r.status === 200, 'POST /api/exit ok');
   const code = await new Promise((res) => server.once('exit', res));
   assert(code === 0, 'server process exited cleanly (code 0)');
-  const leftovers = fs.existsSync(DATA_DIR) ? fs.readdirSync(DATA_DIR) : [];
-  assert(leftovers.length === 0, 'all app data cleared after wipe exit');
+  assert(fs.existsSync(path.join(DATA_DIR, 'users', 'alice', 'master.key.enc')), 'account data preserved after safe exit');
 } finally {
   mock.close();
   server.kill();

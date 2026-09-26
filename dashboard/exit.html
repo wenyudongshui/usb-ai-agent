@@ -9,29 +9,19 @@
 <body>
 <div class="login-wrap">
   <div class="card login-card">
-    <h1>🔒 USB AI Agent</h1>
-    <div id="state" class="banner info">正在退出…</div>
+    <h1>USB AI Agent</h1>
+    <div id="state" class="banner ok">已安全退出。</div>
     <p id="detail" class="muted"></p>
     <div class="center mt">
-      <button id="btnDone" class="btn hidden">完成，关闭页面</button>
+      <button id="btnDone" class="btn">完成，关闭页面</button>
     </div>
   </div>
 </div>
 
 <script>
-  const mode = new URLSearchParams(location.search).get('mode') || 'wipe';
-  const el = document.getElementById('state');
-  el.className = 'banner ok';
-  if (mode === 'wipe') {
-    el.textContent = '已全部删除退出（本机残留与全部账号/档案/密钥数据已清除）。';
-    document.getElementById('detail').innerHTML = '本机与 U 盘数据均已被清理，可安全拔出。';
-  } else {
-    el.textContent = '已保留本次在本机的全部更改，其余数据全部清除。';
-    document.getElementById('detail').innerHTML = '本机本次会话产生的更改已保留；账号/档案/密钥等其余数据已清除。可拔出 U 盘。';
-  }
-  const b = document.getElementById('btnDone');
-  b.classList.remove('hidden');
-  b.addEventListener('click', () => window.close());
+  document.getElementById('detail').innerHTML =
+    '本机残留已清理，账号 / 智能体 / 工作人格数据均保留在 U 盘。<br>可拔出 U 盘。';
+  document.getElementById('btnDone').addEventListener('click', () => window.close());
 </script>
 </body>
 </html>
