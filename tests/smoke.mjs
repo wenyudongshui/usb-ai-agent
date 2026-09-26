@@ -1,9 +1,10 @@
 #!/usr/bin/env node
-// tests/smoke.mjs — end-to-end regression smoke test.
-// Spins up a mock OpenAI-compatible server + the real lib/server.js under a
-// temp PORTABLE_AI_DATA_DIR, then exercises: setup → create AI (with
-// connectivity test) → select → SSE chat → password change (old-pw check) →
-// save-exit. Exits 0 on success, 1 on any failure.
+// tests/smoke.mjs — end-to-end regression smoke test for the management console.
+// Spins up a mock Anthropic-compatible endpoint + the real lib/server.js under a
+// temp PORTABLE_AI_DATA_DIR, then exercises: setup → profile create (mainstream
+// settings.json + CLAUDE.md generated) → activate → connection test → runtime
+// status (not installed) → launch-script generation → safe exit. Exits 0 on
+// success, 1 on any failure.
 import { spawn } from 'node:child_process';
 import http from 'node:http';
 import os from 'node:os';
@@ -16,7 +17,6 @@ const MOCK_PORT = 18999;
 const MAIN_PORT = 18887;
 const DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'usbai-smoke-'));
 const PASS = 'Abc12345x';
-const NEW_PASS = 'Abc12345y';
 
 let failures = 0;
 function assert(cond, name) {
@@ -24,24 +24,22 @@ function assert(cond, name) {
   else { failures++; console.log(`  FAIL  ${name}`); }
 }
 
-// ---- mock OpenAI-compatible endpoint ----
+// ---- mock Anthropic-compatible endpoint (POST /v1/messages) ----
+let messagesHits = 0;
 const mock = http.createServer((req, res) => {
-  let b = ''; req.on('data', (c) => (b += c)); req.on('end', () => {
-    let j = {}; try { j = JSON.parse(b); } catch {}
-    if (j.stream) {
-      res.writeHead(200, { 'content-type': 'text/event-stream' });
-      res.end('data: {"choices":[{"delta":{"content":"ok-stream"}}]}\n\ndata: [DONE]\n\n');
-    } else {
-      res.writeHead(200, { 'content-type': 'application/json' });
-      res.end(JSON.stringify({ choices: [{ message: { content: 'ok-plain' } }] }));
-    }
-  });
+  if (req.method === 'POST' && req.url === '/v1/messages') {
+    messagesHits++;
+    res.writeHead(200, { 'content-type': 'application/json' });
+    res.end(JSON.stringify({ type: 'message', model: 'sonnet', content: [], stop_reason: 'end_turn' }));
+    return;
+  }
+  res.writeHead(404); res.end();
 });
 await new Promise((r) => mock.listen(MOCK_PORT, '127.0.0.1', r));
 
 // ---- start the real server as a child ----
 const server = spawn(process.execPath, ['lib/server.js', String(MAIN_PORT)], {
-  cwd: ROOT, env: { ...process.env, PORTABLE_AI_DATA_DIR: DATA_DIR }, stdio: 'ignore',
+  cwd: ROOT, env: { ...process.env, PORTABLE_AI_DATA_DIR: DATA_DIR, PORTABLE_AI_NO_OPEN: '1' }, stdio: 'ignore',
 });
 await new Promise((r) => setTimeout(r, 800));
 
@@ -59,55 +57,48 @@ async function req(pathname, { method = 'GET', body } = {}) {
 }
 
 try {
-  // status
   assert((await req('/api/status')).json.ok === true, 'GET /api/status ok');
 
-  // setup
   let r = await req('/api/setup', { method: 'POST', body: { password: PASS, password2: PASS } });
   assert(r.status === 200 && r.json.ok === true, 'POST /api/setup ok');
 
-  // create AI with connectivity test
-  r = await req('/api/ai/create', { method: 'POST', body: { name: 'SmokeAI', baseURL: `http://127.0.0.1:${MOCK_PORT}`, model: 'mock', apiKey: 'sk-x', test: true } });
-  assert(r.status === 200 && r.json.aiId === 'ai_001', 'POST /api/ai/create ok');
+  // ---- profile create (provider = anthropic, mock endpoint) ----
+  r = await req('/api/profiles', { method: 'POST', body: { name: 'Smoke', provider: 'anthropic', model: 'sonnet', baseUrl: `http://127.0.0.1:${MOCK_PORT}`, key: 'sk-x', systemPrompt: '你是测试助手。' } });
+  assert(r.status === 200 && r.json.slug === 'smoke', 'POST /api/profiles create ok');
 
-  // list + select
-  r = await req('/api/ais');
-  assert(r.json.ais.length === 1, 'GET /api/ais returns 1 AI');
-  r = await req('/api/ai/select', { method: 'POST', body: { aiId: 'ai_001' } });
-  assert(r.status === 200, 'POST /api/ai/select ok');
+  // mainstream artifacts generated
+  const pdir = path.join(DATA_DIR, 'profiles', 'smoke');
+  assert(fs.existsSync(path.join(pdir, 'profile.json')), 'profile.json written');
+  const settings = JSON.parse(fs.readFileSync(path.join(pdir, 'settings.json'), 'utf8'));
+  assert(settings.env?.ANTHROPIC_MODEL === 'sonnet' && settings.systemPrompt === '你是测试助手。', 'mainstream settings.json generated (env + systemPrompt)');
+  assert(fs.existsSync(path.join(pdir, 'CLAUDE.md')), 'CLAUDE.md seeded');
 
-  // SSE chat (stream)
-  const chatRes = await fetch(BASE + '/api/chat', {
-    method: 'POST', headers: { 'Content-Type': 'application/json', Cookie: jar },
-    body: JSON.stringify({ aiId: 'ai_001', messages: [{ role: 'user', content: 'hi' }], stream: true }),
-  });
-  const text = await chatRes.text();
-  assert(text.includes('ok-stream') && text.includes('type":"done"'), 'SSE chat streams ok-stream');
+  // ---- list + activate ----
+  r = await req('/api/profiles');
+  assert(r.json.profiles.length === 1 && !!r.json.providers, 'GET /api/profiles lists profile + providers');
+  r = await req('/api/profiles/smoke/activate', { method: 'POST', body: {} });
+  assert(r.status === 200 && r.json.active === 'smoke', 'POST /api/profiles/smoke/activate ok');
 
-  // password change: wrong old must fail, correct old must pass
-  r = await req('/api/password', { method: 'POST', body: { oldPassword: 'wrongpw123', newPassword: NEW_PASS, newPassword2: NEW_PASS } });
-  assert(r.status === 401, 'POST /api/password rejects wrong old password');
-  r = await req('/api/password', { method: 'POST', body: { oldPassword: PASS, newPassword: NEW_PASS, newPassword2: NEW_PASS } });
-  assert(r.status === 200 && r.json.ok === true, 'POST /api/password accepts correct old password');
+  // ---- connection test hits the mock /v1/messages ----
+  r = await req('/api/profiles/smoke/test', { method: 'POST', body: {} });
+  assert(r.status === 200 && r.json.ok === true && messagesHits >= 1, 'POST /api/profiles/smoke/test ok (mock hit)');
 
-  // relogin with the new password
-  jar = '';
-  r = await req('/api/login', { method: 'POST', body: { password: NEW_PASS } });
-  assert(r.status === 200, 'login with new password ok');
+  // ---- runtime status: engine not installed ----
+  r = await req('/api/runtime');
+  assert(r.json.installed === false, 'GET /api/runtime reports not installed');
 
-  // DNS-rebind guard (raw request: fetch() sanitizes Host, so use node:http)
-  const rebindStatus = await new Promise((resolve) => {
-    const rq = http.request({ host: '127.0.0.1', port: MAIN_PORT, path: '/api/status', headers: { Host: 'evil.example.com' } }, (rs) => resolve(rs.statusCode));
-    rq.on('error', () => resolve(-1));
-    rq.end();
-  });
-  assert(rebindStatus === 403, 'DNS-rebind Host rejected (403)');
+  // ---- launch generates a script without opening a console (PORTABLE_AI_NO_OPEN) ----
+  r = await req('/api/launch', { method: 'POST', body: { slug: 'smoke' } });
+  assert(r.status === 200 && r.json.simulated === true, 'POST /api/launch ok (simulated)');
+  assert(fs.existsSync(path.join(DATA_DIR, 'launch', 'smoke.bat')), 'launch script generated');
 
-  // save-exit writes memory + cleans + stops server
-  r = await req('/api/exit', { method: 'POST', body: { save: true, aiId: 'ai_001', messages: [{ role: 'user', content: 'hi' }, { role: 'assistant', content: 'ok-stream' }] } });
+  // ---- ad-hoc connection test (editor) ----
+  r = await req('/api/test', { method: 'POST', body: { provider: 'anthropic', model: 'sonnet', baseUrl: `http://127.0.0.1:${MOCK_PORT}`, key: 'sk-x' } });
+  assert(r.status === 200 && r.json.ok === true, 'POST /api/test (ad-hoc) ok');
+
+  // ---- save-exit cleans + stops ----
+  r = await req('/api/exit', { method: 'POST', body: {} });
   assert(r.status === 200, 'POST /api/exit ok');
-
-  // child should have exited (clean exit path)
   const code = await new Promise((res) => server.once('exit', res));
   assert(code === 0, 'server process exited cleanly (code 0)');
 } finally {

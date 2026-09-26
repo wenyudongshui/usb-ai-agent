@@ -9,11 +9,15 @@ const require = createRequire(import.meta.url);
 const P = require('../lib/paths.js');
 const CLN = require('../lib/modules/cleanup.js');
 const USB = require('../lib/modules/usb.js');
-const { localStatus } = require('../lib/modules/local-models.js');
+const LOC = require('../lib/modules/local-models.js');
+const PR = require('../lib/modules/profiles.js');
+const RT = require('../lib/modules/runtime.js');
+const AD = require('../lib/modules/adapter.js');
+const { PROVIDERS } = require('../lib/modules/providers.js');
 const pkg = require('../package.json');
 
 const ROOT = P.ROOT;
-const NODE_PATH = process.execPath; // launcher runs under the bootstrapped portable Node
+const NODE_PATH = process.execPath;
 
 function findFreePort(from = 8787, to = 8807) {
   return new Promise((resolve) => {
@@ -51,7 +55,7 @@ async function startDashboard() {
     env: { ...process.env },
   });
   const url = `http://127.0.0.1:${port}`;
-  console.log(`\n  USB AI Agent · ${pkg.version}\n  网页界面: ${url}\n  输入密码后使用; 「保存并退出」或 Ctrl+C 停止。\n`);
+  console.log(`\n  USB AI Agent · ${pkg.version} — 管理控制台\n  ${url}\n  输入密码后管理 Claude Code 引擎 / 档案；「安全退出」或 Ctrl+C 停止。\n`);
   openBrowser(url);
   const stop = () => { try { child.kill(); } catch {} process.exit(0); };
   process.once('SIGINT', stop);
@@ -59,26 +63,44 @@ async function startDashboard() {
   child.on('exit', () => process.exit(0));
 }
 
+async function cliSession(slugArg) {
+  const slug = slugArg || PR.getActive();
+  const profile = slug ? PR.load(slug) : null;
+  if (!profile) throw new Error('没有可用的档案。请先在网页端创建并激活一个档案（提供商 + 模型 + 提示词）。');
+  PR.ensureSettings(profile);
+  const executable = RT.executableAt();
+  if (!executable) throw new Error('尚未安装 Claude Code 引擎。请在网页端点击「安装引擎」，或运行: node tools/launcher.mjs install');
+  const provider = PROVIDERS[profile.provider];
+  const useAdapter = provider.transport === 'openai';
+  const adapter = useAdapter ? await AD.startAdapter({ provider: profile.provider, model: profile.model, baseUrl: profile.baseUrl, key: profile.key }) : null;
+  const env = PR.launchEnvironment(profile, adapter);
+  console.log(`\n  Claude Code → ${provider.name} / ${profile.model}\n  配置目录: ${PR.dir(profile.slug)}（settings.json + CLAUDE.md 已加载）\n`);
+  try {
+    await RT.run(executable, ['--model', profile.model, ...(slugArg ? [] : [])], { stdio: 'inherit', env, cwd: PR.dir(profile.slug) });
+  } finally {
+    await adapter?.close();
+  }
+}
+
 async function main() {
   const [command, ...args] = process.argv.slice(2);
 
-  // Node runtime is managed by the bootstrap layer, not npm — informational only.
-  if (command === 'install' || command === 'update' || command === 'rollback') {
-    console.log('[usb-ai-agent] The portable Node runtime is managed by tools/bootstrap.ps1 / bootstrap.sh.\nRe-run start.bat (Windows) or start.sh (POSIX) to re-bootstrap.');
+  if (command === 'install' || command === 'update') {
+    await RT.installRuntime({ onOutput: (s) => process.stdout.write(s) });
     return;
   }
+  if (command === 'rollback') { await RT.rollbackRuntime(); console.log('[usb-ai-agent] 已回滚到上一版本。'); return; }
 
   if (command === 'status') {
-    const ollama = await localStatus();
+    const rt = await RT.runtimeStatus();
+    const ollama = await LOC.localStatus();
     console.log(JSON.stringify({
-      service: pkg.name,
-      version: pkg.version,
-      node: process.version,
-      root: ROOT,
-      dataDir: P.DATA_DIR,
-      unclean: USB.hadUncleanExit(),
+      service: pkg.name, version: pkg.version, node: process.version,
+      root: ROOT, dataDir: P.DATA_DIR, unclean: USB.hadUncleanExit(),
+      engine: { installed: rt.installed, version: rt.version, pinned: rt.pinned },
+      activeProfile: PR.getActive(),
+      profiles: PR.listProfiles().map((p) => ({ slug: p.slug, provider: p.provider, model: p.model, active: p.active })),
       ollama,
-      server: 'start with: node tools/launcher.mjs dashboard',
     }, null, 2));
     return;
   }
@@ -86,7 +108,7 @@ async function main() {
   if (command === 'clean') {
     CLN.cleanupLocal();
     USB.clearFlag();
-    console.log('[usb-ai-agent] Host residue cleaned (cache_path.txt entries removed).');
+    console.log('[usb-ai-agent] 本机残留已清理。');
     return;
   }
 
@@ -98,25 +120,28 @@ async function main() {
       { stdio: 'inherit', cwd: ROOT });
   }
 
+  if (command === 'cli') {
+    await cliSession(args[0]);
+    return;
+  }
+
   if (command === 'dashboard') {
     return startDashboard();
   }
 
   if (!command) {
-    console.log('\n  USB AI AGENT · U盘私有化AI智能体\n\n  1  启动网页界面 (dashboard)\n  2  安装本地模型 (local-setup)\n  3  查看状态 (status)\n  4  一键清理本机残留 (clean)\n  5  退出\n');
+    console.log('\n  USB AI AGENT · U盘私有化AI智能体\n\n  1  启动管理控制台 (dashboard)\n  2  命令行对话 claude (cli)\n  3  安装/更新 Claude Code 引擎 (install)\n  4  安装本地模型 (local-setup)\n  5  查看状态 (status)\n  6  一键清理本机残留 (clean)\n  7  退出\n');
     const rl = createInterface({ input: process.stdin, output: process.stdout });
     const answer = await rl.question('选择 [1]: ');
     rl.close();
-    const cmd = ({ '2': 'local-setup', '3': 'status', '4': 'clean', '5': 'exit' })[answer] || 'dashboard';
+    const cmd = ({ '2': 'cli', '3': 'install', '4': 'local-setup', '5': 'status', '6': 'clean', '7': 'exit' })[answer] || 'dashboard';
     if (cmd === 'exit') return;
-    return mainWith([cmd]);
+    process.argv = [process.argv[0], process.argv[1], cmd];
+    return main();
   }
 
-  console.log('命令: dashboard | local-setup | status | clean | install/update/rollback');
+  console.log('命令: dashboard | cli [slug] | install | rollback | status | clean | local-setup');
   process.exitCode = 1;
 }
-
-// re-dispatch single-arg from the menu without re-parsing
-async function mainWith(cmd) { process.argv = [process.argv[0], process.argv[1], ...cmd]; return main(); }
 
 main().catch((e) => { console.error(`\nUSB AI Agent: ${e.message}`); process.exitCode = 1; });
