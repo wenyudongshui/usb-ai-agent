@@ -270,7 +270,7 @@ async function importFile(file) {
 // ============ ③ 工作人格 ============
 async function loadPersonas() {
   const { j } = await jget('/api/personas');
-  state.personas = j.profiles || [];
+  state.personas = j.personas || [];
   renderPersonas();
 }
 function renderPersonas() {
