@@ -113,6 +113,8 @@ try {
   // ---- engine: check (step 1) reports not installed; launch works ----
   r = await req('/api/engine/check');
   assert(r.json.installed === false, 'GET /api/engine/check reports not installed');
+  r = await req('/api/engine/progress');
+  assert(r.status === 200 && typeof r.json.pct === 'number' && r.json.installing === false, 'GET /api/engine/progress returns real-progress fields');
 
   r = await req('/api/launch', { method: 'POST', body: { slug: '__active__' } });
   assert(r.status === 200 && r.json.simulated === true, 'POST /api/launch ok (simulated)');
