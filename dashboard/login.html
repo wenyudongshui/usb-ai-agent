@@ -3,160 +3,59 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>USB AI Agent · 登录</title>
+<title>USB AI Agent</title>
 <link rel="stylesheet" href="/styles.css">
-<style>
-  .login-layout { display:flex; min-height:100vh; }
-  .sidebar { width:240px; background:#1f2937; color:#fff; padding:18px 12px; display:flex; flex-direction:column; gap:8px; }
-  .sidebar h1 { font-size:15px; margin:0 8px 12px; }
-  .account { padding:12px 14px; border-radius:10px; cursor:pointer; border:1px solid transparent; }
-  .account:hover { background:#374151; }
-  .account.selected { background:#2e74b5; border-color:#60a5fa; }
-  .account .nm { font-size:14px; }
-  .account .dt { font-size:12px; color:#9ca3af; }
-  .addbtn { border:1px dashed #4b5563; color:#d1d5db; text-align:center; padding:12px; border-radius:10px; cursor:pointer; font-size:13px; }
-  .addbtn:hover { border-color:#9ca3af; color:#fff; }
-  .main-area { flex:1; display:flex; align-items:center; justify-content:center; padding:24px; }
-  .login-card { width:360px; }
-  .login-card h2 { font-size:18px; margin:0 0 4px; }
-  .login-card p.sub { color:#6b7280; font-size:13px; margin:0 0 18px; }
-  .login-card input { width:100%; padding:10px 12px; margin-bottom:14px; border:1px solid #d1d5db; border-radius:8px; font-size:14px; }
-  .login-card button { width:100%; padding:10px; background:#2e74b5; color:#fff; border:none; border-radius:8px; font-size:14px; }
-  ul.rules { text-align:left; color:#6b7280; font-size:12px; margin:0 0 14px; padding-left:18px; }
-</style>
 </head>
 <body>
-<div class="login-layout">
-  <aside class="sidebar">
+<div class="login-wrap">
+  <div class="card login-card">
     <h1>USB AI Agent</h1>
-    <div class="addbtn" id="btnAdd">＋ 新增账号</div>
-    <div id="accountList"></div>
-  </aside>
-
-  <div class="main-area">
-    <div class="card login-card" id="loginPanel">
-      <div id="unclean" class="banner warn hidden">检测到上次为非正常退出，已自动补清理本机残留。</div>
-
-      <!-- 选择账号后仅需输入密码 -->
-      <div id="loginBox" class="hidden">
-        <h2 id="loginName"></h2>
-        <p class="sub">输入该账号的密码</p>
-        <input type="password" id="pw" placeholder="密码" autocomplete="current-password">
-        <button id="btnLogin">登 录</button>
-        <div id="msgLogin"></div>
-      </div>
-
-      <!-- 新增账号 -->
-      <div id="addBox" class="hidden">
-        <h2>新增账号</h2>
-        <p class="sub">账号名将显示在左侧列表；密码不落明文，仅作解锁钥匙</p>
-        <input type="text" id="a_name" placeholder="账号名" autocomplete="username">
-        <input type="password" id="a_pw1" placeholder="密码（8位以上，含大小写与数字）" autocomplete="new-password">
-        <input type="password" id="a_pw2" placeholder="确认密码" autocomplete="new-password">
-        <ul class="rules">
-          <li>密码至少 8 位，含大写字母、小写字母和数字</li>
-          <li>密码以 scrypt 派生钥匙加密存储，文件内不可读取</li>
-        </ul>
-        <button id="btnAddOk">创建账号并进入</button>
-        <div id="msgAdd"></div>
-      </div>
-
-      <!-- 空状态 -->
-      <div id="emptyBox" class="hidden">
-        <h2>还没有账号</h2>
-        <p class="sub">点击左侧「＋ 新增账号」创建第一个账号并设置密码。</p>
-      </div>
-    </div>
+    <div id="unclean" class="banner warn hidden">上次非正常退出，已自动补清理本机残留。</div>
+    <div id="tip" class="muted" style="margin-bottom:14px;font-size:13px"></div>
+    <input type="text" id="a_name" placeholder="账号名" autocomplete="username">
+    <input type="password" id="a_pw" placeholder="密码" autocomplete="current-password">
+    <button id="btnGo">进入</button>
+    <div id="msg" class="err" style="margin-top:12px;font-size:13px;color:#dc2626;min-height:16px"></div>
   </div>
 </div>
 
 <script>
 const $ = (id) => document.getElementById(id);
-let users = []; // account names (strings)
+let needsSetup = false;
 
-async function postJSON(url, body) {
-  const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) });
-  return { r, j: await r.json().catch(() => ({})) };
-}
-
-// /api/users returns [{name, created}, ...] — normalize to names
-async function loadUsers() {
+async function init() {
   try {
-    const r = await fetch('/api/users');
-    const { j } = await r.json();
-    users = (j.users || []).map((u) => (typeof u === 'string' ? u : u.name)).filter(Boolean);
-  } catch { /* transient; retried on next load */ }
-  if (users.length === 0) { showEmpty(); return; }
-  const cur = $('loginName').textContent;
-  selectAccount(users.includes(cur) ? cur : users[0]); // keep current selection if possible
+    const s = await (await fetch('/api/session', { cache: 'no-store' })).json();
+    if (s.unclean) $('unclean').classList.remove('hidden');
+    needsSetup = !!s.needsSetup;
+    $('tip').textContent = needsSetup ? '首次使用 · 设置账号（账号名 + 密码，无需确认）' : '登录';
+    $('btnGo').textContent = needsSetup ? '设置并进入' : '登录';
+    $('a_pw').placeholder = needsSetup ? '设置密码（8位以上，含大小写数字）' : '密码';
+    $('a_name').focus();
+  } catch {}
 }
+init();
+// re-check on back/forward-cache re-entry (USB replug / exit and re-enter)
+window.addEventListener('pageshow', init);
 
-function renderAccounts(selected) {
-  const box = $('accountList');
-  box.innerHTML = '';
-  for (const u of users) {
-    const el = document.createElement('div');
-    el.className = 'account' + (u === selected ? ' selected' : '');
-    el.innerHTML = `<div class="nm">${u}</div>`;
-    el.onclick = () => selectAccount(u); // click -> auto-fill account name, password only
-    box.appendChild(el);
+async function go() {
+  const msg = $('msg'); msg.textContent = '';
+  const name = $('a_name').value.trim(), pw = $('a_pw').value;
+  if (!name || !pw) { msg.textContent = '请输入账号名与密码'; return; }
+  const post = (u, b) => fetch(u, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b) });
+  if (needsSetup) {
+    const r = await post('/api/users', { username: name, password: pw });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) { msg.textContent = j.error || '设置失败'; return; }
   }
-}
-
-function selectAccount(name) {
-  $('loginName').textContent = name;
-  $('loginBox').classList.remove('hidden');
-  $('addBox').classList.add('hidden');
-  $('emptyBox').classList.add('hidden');
-  $('pw').value = ''; $('msgLogin').textContent = '';
-  $('pw').focus();
-  renderAccounts(name);
-}
-
-function showAdd() {
-  $('loginBox').classList.add('hidden');
-  $('addBox').classList.remove('hidden');
-  $('emptyBox').classList.add('hidden');
-  $('a_name').value = ''; $('a_pw1').value = ''; $('a_pw2').value = ''; $('msgAdd').textContent = '';
-  $('a_name').focus();
-  renderAccounts(null);
-}
-
-function showEmpty() {
-  $('loginBox').classList.add('hidden');
-  $('addBox').classList.add('hidden');
-  $('emptyBox').classList.remove('hidden');
-  renderAccounts(null);
-}
-
-// initial load + refresh on back/forward cache (USB replug / exit re-enter)
-loadUsers();
-window.addEventListener('pageshow', loadUsers);
-
-$('btnAdd').addEventListener('click', showAdd);
-$('btnLogin').addEventListener('click', async () => {
-  const msg = $('msgLogin'); msg.textContent = '';
-  const { r, j } = await postJSON('/api/login', { username: $('loginName').textContent, password: $('pw').value });
+  const r = await post('/api/login', { username: name, password: pw });
+  const j = await r.json().catch(() => ({}));
   if (r.ok) window.location.href = j.redirect || '/main.html';
   else msg.textContent = j.error || '登录失败';
-});
-$('btnAddOk').addEventListener('click', async () => {
-  const msg = $('msgAdd'); msg.textContent = '';
-  const name = $('a_name').value.trim(), pw1 = $('a_pw1').value, pw2 = $('a_pw2').value;
-  if (!name) { msg.textContent = '请填写账号名'; return; }
-  if (pw1 !== pw2) { msg.textContent = '两次输入的密码不一致'; return; }
-  const { r, j } = await postJSON('/api/users', { username: name, password: pw1 });
-  if (!r.ok) { msg.textContent = j.error || '创建失败'; return; }
-  await loadUsers(); // refresh the list immediately
-  const lr = await postJSON('/api/login', { username: name, password: pw1 });
-  if (lr.r.ok) window.location.href = lr.j.redirect || '/main.html';
-  else selectAccount(name);
-});
-document.addEventListener('keydown', (e) => {
-  if (e.key !== 'Enter') return;
-  if (!$('loginBox').classList.contains('hidden')) $('btnLogin').click();
-  else if (!$('addBox').classList.contains('hidden')) $('btnAddOk').click();
-});
+}
+
+$('btnGo').addEventListener('click', go);
+$('a_pw').addEventListener('keydown', (e) => { if (e.key === 'Enter') go(); });
 </script>
 </body>
 </html>

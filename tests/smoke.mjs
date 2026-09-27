@@ -135,20 +135,14 @@ try {
   const noSes = await fetch(BASE + '/v1/models');
   assert(noSes.status === 401, '/v1 without a session is rejected (401)');
 
-  // ---- cascade delete: account with agents + personas -> whole dir gone ----
-  await req('/api/users', { method: 'POST', body: { username: 'carol', password: PASS } });
-  jar = '';
-  await req('/api/login', { method: 'POST', body: { username: 'carol', password: PASS } });
-  await req('/api/agents', { method: 'POST', body: { name: 'Carol', baseUrl: `http://127.0.0.1:${MOCK_PORT}`, apiKey: 'sk-carol', model: 'sonnet', transport: 'anthropic' } });
-  await req('/api/personas', { method: 'POST', body: { name: 'CarolWork' } });
-  assert(fs.existsSync(path.join(DATA_DIR, 'users', 'carol', 'agents.enc')), 'carol has encrypted agents.enc');
-  assert(fs.existsSync(path.join(DATA_DIR, 'users', 'carol', 'personas')), 'carol has personas dir');
-  r = await req('/api/users/carol/delete', { method: 'POST', body: {} });
-  assert(r.status === 200 && r.json.ok === true, 'POST /api/users/carol/delete ok (cascade)');
-  assert(!fs.existsSync(path.join(DATA_DIR, 'users', 'carol')), 'cascade delete removes agents + personas + all data');
+  // ---- single account: a second account is rejected; re-login works ----
+  r = await req('/api/users', { method: 'POST', body: { username: 'bob', password: PASS } });
+  assert(r.status === 400 && r.json.error.includes('仅单账号'), 'second account rejected (single-account)');
+  r = await req('/api/users', { method: 'POST', body: { username: 'alice', password: PASS } });
+  assert(r.status === 400 && r.json.error.includes('仅单账号'), 're-creating existing account rejected (single-account)');
   jar = '';
   r = await req('/api/login', { method: 'POST', body: { username: 'alice', password: PASS } });
-  assert(r.status === 200, 're-login as alice after carol deletion');
+  assert(r.status === 200, 'login as the single account ok');
 
   // ---- safe exit: cleans host residue, KEEPS all account data ----
   r = await req('/api/exit', { method: 'POST', body: {} });

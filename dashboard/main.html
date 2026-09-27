@@ -25,7 +25,6 @@
   <span id="userBadge" class="badge"></span>
   <div class="spacer"></div>
   <button id="btnPwd">修改密码</button>
-  <button id="btnDelAccount">删除账号</button>
   <button id="btnExit">安全退出</button>
   <button id="logout">退出登录</button>
 </header>
@@ -373,12 +372,6 @@ $('btnOllamaStop').addEventListener('click', async () => { const { j } = await p
 // ============ 账号 / 退出 ============
 $('btnExit').addEventListener('click', async () => { await postJSON('/api/exit', {}); window.location.href = '/exit.html'; });
 $('logout').addEventListener('click', async () => { await fetch('/api/logout', { method: 'POST' }); window.location.href = '/login.html'; });
-$('btnDelAccount').addEventListener('click', async () => {
-  if (!confirm(`删除账号「${state.username}」？其下全部智能体、工作人格与数据将级联删除，不可恢复。`)) return;
-  const { j } = await postJSON(`/api/users/${encodeURIComponent(state.username)}/delete`, {});
-  if (j.ok) { await fetch('/api/logout', { method: 'POST' }); window.location.href = '/login.html'; }
-  else alert(j.error || '删除失败');
-});
 
 // ============ 密码 ============
 $('btnPwd').addEventListener('click', () => $('pwdModal').classList.remove('hidden'));
