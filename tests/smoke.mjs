@@ -127,6 +127,14 @@ try {
   assert(r.status === 200 && r.json.agent?.name === 'Mock' && r.json.persona?.name === 'DailyQA', 'GET /api/dialog/info reflects active agent + persona');
   assert(r.json.engineInstalled === false, 'GET /api/dialog/info reports engine not installed');
 
+  // ---- embedded NextChat OpenAI bridge (/v1, session-authed) ----
+  r = await req('/v1/models');
+  assert(r.status === 200 && r.json.data?.[0]?.id === 'sonnet', 'GET /v1/models returns the active agent model');
+  r = await req('/v1/chat/completions', { method: 'POST', body: { model: 'anything', messages: [{ role: 'user', content: 'hi' }], stream: false } });
+  assert(r.status === 200 && r.json.choices?.[0]?.message !== undefined, 'POST /v1/chat/completions bridges (Anthropic translation)');
+  const noSes = await fetch(BASE + '/v1/models');
+  assert(noSes.status === 401, '/v1 without a session is rejected (401)');
+
   // ---- cascade delete: account with agents + personas -> whole dir gone ----
   await req('/api/users', { method: 'POST', body: { username: 'carol', password: PASS } });
   jar = '';

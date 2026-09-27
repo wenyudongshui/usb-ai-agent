@@ -352,8 +352,7 @@ $('btnLaunch').addEventListener('click', async () => {
   } else {
     const { j } = await jget('/api/dialog/info');
     if (!j.agent || !j.persona) { msg.textContent = '请先设置智能体与工作人格'; return; }
-    if (!j.engineInstalled) { msg.textContent = '请先安装引擎'; return; }
-    window.location.href = '/dialog.html';
+    window.location.href = '/nextchat/';
   }
 });
 
