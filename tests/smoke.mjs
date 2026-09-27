@@ -54,6 +54,8 @@ async function req(pathname, { method = 'GET', body } = {}) {
 
 try {
   assert((await req('/api/status')).json.ok === true, 'GET /api/status ok');
+  const usersRes = await fetch(BASE + '/api/users');
+  assert(usersRes.headers.get('cache-control') === 'no-store', 'JSON API sends Cache-Control: no-store');
 
   // ---- multi-account: no users → add alice → login ----
   let r = await req('/api/users');
