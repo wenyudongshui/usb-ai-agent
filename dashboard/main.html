@@ -118,23 +118,14 @@
     </div>
   </section>
 
-  <!-- ④ 运行模式 -->
+  <!-- ④ 命令行 -->
   <section class="panel">
-    <div class="steptag">4 / 4 · 运行模式</div>
-    <h2>运行模式</h2>
+    <div class="steptag">4 / 4 · 命令行</div>
+    <h2>启动 Claude Code 终端</h2>
     <div class="body">
-      <div class="choose">
-        <div class="choose-item" id="modeCli" data-mode="cli" onclick="pickMode('cli')">
-          <div class="nm">命令行模式</div>
-          <div class="dt">Claude Code 终端，能力最完整</div>
-        </div>
-        <div class="choose-item" id="modeGui" data-mode="dialog" onclick="pickMode('dialog')">
-          <div class="nm">对话框模式</div>
-          <div class="dt">网页聊天，流式输出 + 工具审批</div>
-        </div>
-      </div>
-      <div class="form-row mt">
-        <button class="btn" id="btnLaunch">启动</button>
+      <p class="hint">以当前智能体 + 工作人格，在终端里开始对话 / 编码。</p>
+      <div class="form-row">
+        <button class="btn" id="btnLaunch">🚀 命令行对话</button>
         <span id="launchMsg" class="hint" style="align-self:center"></span>
       </div>
     </div>
@@ -168,7 +159,7 @@
 
 <script>
 const $ = (id) => document.getElementById(id);
-const state = { agents: [], personas: [], username: null, runMode: 'cli' };
+const state = { agents: [], personas: [], username: null };
 
 async function jget(url) { const r = await fetch(url); return { r, j: await r.json().catch(() => ({})) }; }
 async function postJSON(url, body, method = 'POST') {
@@ -337,22 +328,10 @@ function wireDrop(target, textareaId) {
 wireDrop('claude', 'e_claude');
 
 // ============ ④ 运行模式 ============
-function pickMode(mode) {
-  state.runMode = mode;
-  $('modeCli').classList.toggle('sel', mode === 'cli');
-  $('modeGui').classList.toggle('sel', mode === 'dialog');
-}
-window.pickMode = pickMode;
 $('btnLaunch').addEventListener('click', async () => {
   const msg = $('launchMsg'); msg.textContent = '启动中…';
-  if (state.runMode === 'cli') {
-    const { j } = await postJSON('/api/launch', { slug: '__active__' });
-    msg.textContent = j.ok ? '终端已启动' : (j.error || '启动失败');
-  } else {
-    const { j } = await jget('/api/dialog/info');
-    if (!j.agent || !j.persona) { msg.textContent = '请先设置智能体与工作人格'; return; }
-    window.location.href = '/nextchat/';
-  }
+  const { j } = await postJSON('/api/launch', { slug: '__active__' });
+  msg.textContent = j.ok ? '终端已启动' : (j.error || '启动失败');
 });
 
 // ============ 系统 ============
@@ -388,7 +367,6 @@ $('btnPwdOk').addEventListener('click', async () => {
   if (!(await guard())) return;
   await Promise.all([loadAgents(), loadPersonas(), loadSystem()]);
   await checkEngine();
-  pickMode('cli');
   setInterval(() => { jget('/api/engine/check').then(({ j }) => { $('engineBadge').textContent = j.installed ? `v${j.version}` : '未安装'; }); }, 6000);
 })();
 </script>
