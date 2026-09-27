@@ -28,6 +28,7 @@
   <button id="btnExit">安全退出</button>
   <button id="logout">退出登录</button>
 </header>
+<div id="toast" style="position:fixed;top:12px;left:50%;transform:translateX(-50%);background:#1f2937;color:#fff;padding:8px 16px;border-radius:8px;font-size:13px;z-index:99;display:none"></div>
 
 <main>
   <div id="unclean" class="banner warn hidden">上次非正常退出，已自动补清理本机残留。</div>
@@ -167,6 +168,27 @@ async function postJSON(url, body, method = 'POST') {
   return { r, j: await r.json().catch(() => ({})) };
 }
 
+// toast(): transient top-center message — avoids native alert()/confirm() which
+// some environments block silently (that was why "删除" seemed to do nothing).
+let toastTimer = null;
+function toast(text) {
+  const t = $('toast');
+  t.textContent = text; t.style.display = 'block';
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { t.style.display = 'none'; }, 2600);
+}
+// twoStepDel(btn, label, fn): click once -> "确认删除"; click again within 3s -> fn()
+function twoStepDel(btn, label, fn) {
+  if (btn.dataset.confirm !== '1') {
+    btn.dataset.confirm = '1'; const old = btn.textContent;
+    btn.textContent = '确认删除'; btn.style.background = '#dc2626';
+    btn._t = setTimeout(() => { delete btn.dataset.confirm; btn.textContent = old; btn.style.background = ''; }, 3000);
+    return;
+  }
+  clearTimeout(btn._t); delete btn.dataset.confirm; btn.textContent = label; btn.style.background = '';
+  fn();
+}
+
 async function guard() {
   const { j } = await jget('/api/session');
   if (!j.authed) { window.location.href = '/login.html'; return false; }
@@ -230,8 +252,8 @@ function renderAgents() {
         <button class="btn danger small" data-role="del">删除</button>
       </div>`;
     el.querySelector('[data-role="sel"]')?.addEventListener('click', async (e) => { e.stopPropagation(); await postJSON(`/api/agents/${a.id}/activate`, {}); loadAgents(); });
-    el.querySelector('[data-role="test"]')?.addEventListener('click', async (e) => { e.stopPropagation(); const { j } = await postJSON(`/api/agents/${a.id}/test`, {}); alert(j.ok ? '连接正常' : (j.error || '失败')); });
-    el.querySelector('[data-role="del"]')?.addEventListener('click', async (e) => { e.stopPropagation(); if (confirm(`删除智能体「${a.name}」？`)) { await postJSON(`/api/agents/${a.id}`, {}, 'DELETE'); loadAgents(); } });
+    el.querySelector('[data-role="test"]')?.addEventListener('click', async (e) => { e.stopPropagation(); const { j } = await postJSON(`/api/agents/${a.id}/test`, {}); toast(j.ok ? '连接正常' : (j.error || '连接失败')); });
+    el.querySelector('[data-role="del"]')?.addEventListener('click', (e) => { e.stopPropagation(); twoStepDel(e.currentTarget, '删除', async () => { await postJSON(`/api/agents/${a.id}`, {}, 'DELETE'); toast('已删除'); loadAgents(); }); });
     el.onclick = async () => { if (!a.active) { await postJSON(`/api/agents/${a.id}/activate`, {}); loadAgents(); } };
     box.appendChild(el);
   }
@@ -274,7 +296,7 @@ function renderPersonas() {
     const el = document.createElement('div');
     el.className = 'choose-item' + (p.active ? ' sel' : '');
     el.innerHTML = `<div class="nm">${p.active ? '✓ ' : ''}${p.name}</div>
-      <div class="dt">${p.personaPreview || ''}</div>
+      <div class="dt">${p.personaPreview || ''}${p.active ? ' · 已选，再点取消' : ''}</div>
       <div class="ops">
         ${p.active ? '' : '<button class="btn small" data-role="sel">设为当前</button>'}
         <button class="btn ghost small" data-role="edit">编辑</button>
@@ -282,8 +304,12 @@ function renderPersonas() {
       </div>`;
     el.querySelector('[data-role="sel"]')?.addEventListener('click', async (e) => { e.stopPropagation(); await activateProfile(p.slug); });
     el.querySelector('[data-role="edit"]')?.addEventListener('click', (e) => { e.stopPropagation(); openEditor(p.slug); });
-    el.querySelector('[data-role="del"]')?.addEventListener('click', async (e) => { e.stopPropagation(); if (confirm(`删除「${p.name}」？`)) { await postJSON(`/api/personas/${p.slug}`, {}, 'DELETE'); loadPersonas(); } });
-    el.onclick = async () => { if (!p.active) await activateProfile(p.slug); };
+    el.querySelector('[data-role="del"]')?.addEventListener('click', (e) => { e.stopPropagation(); twoStepDel(e.currentTarget, '删除', async () => { await postJSON(`/api/personas/${p.slug}`, {}, 'DELETE'); toast('已删除'); loadPersonas(); }); });
+    el.onclick = async () => {
+      if (p.active) { await postJSON(`/api/personas/${p.slug}/deactivate`, {}); toast('已取消人格，进入无人设模式'); }
+      else await activateProfile(p.slug);
+      loadPersonas();
+    };
     box.appendChild(el);
   }
 }
@@ -345,8 +371,8 @@ async function refreshOllama() {
   const o = j.ollama || {};
   $('ollamaInfo').textContent = o.online ? 'Ollama 在线' : o.installed ? 'Ollama 已装未运行' : '未安装 Ollama';
 }
-$('btnOllamaStart').addEventListener('click', async () => { const { j } = await postJSON('/api/local', { action: 'start' }); alert(j.ok ? '已启动' : (j.error || '失败')); refreshOllama(); });
-$('btnOllamaStop').addEventListener('click', async () => { const { j } = await postJSON('/api/local', { action: 'stop' }); alert(j.ok ? '已停止' : (j.error || '失败')); refreshOllama(); });
+$('btnOllamaStart').addEventListener('click', async () => { const { j } = await postJSON('/api/local', { action: 'start' }); toast(j.ok ? '已启动' : (j.error || '启动失败')); refreshOllama(); });
+$('btnOllamaStop').addEventListener('click', async () => { const { j } = await postJSON('/api/local', { action: 'stop' }); toast(j.ok ? '已停止' : (j.error || '停止失败')); refreshOllama(); });
 
 // ============ 账号 / 退出 ============
 $('btnExit').addEventListener('click', async () => { await postJSON('/api/exit', {}); window.location.href = '/exit.html'; });

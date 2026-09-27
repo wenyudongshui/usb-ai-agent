@@ -54,13 +54,18 @@ async function startDashboard() {
 // materialized profile config (data/users/<u>/profiles/<slug>/settings.json).
 // No password needed — the web console has already materialized settings.json.
 async function cliSession(username, slug) {
-  if (!username) throw new Error('用法: node tools/launcher.mjs cli <账号名> [档案slug]');
-  const targetSlug = slug || PR.getActive(username);
-  if (!targetSlug) throw new Error('请先在网页端激活一个档案');
-  const dir = PR.dir(username, targetSlug);
+  if (!username) throw new Error('用法: node tools/launcher.mjs cli <账号名> [档案slug|__none__]');
+  const targetSlug = slug && slug !== '__none__' ? slug : PR.getActive(username);
+  let dir;
+  if (targetSlug) {
+    try { PR.load(username, targetSlug); } catch { throw new Error(`档案「${targetSlug}」不存在，请在网页端选择。`); }
+    dir = PR.dir(username, targetSlug);
+  } else {
+    dir = PR.bareDir(username); // no persona selected — pure agent env
+  }
   const settings = readSettingsSafe(dir);
   if (!settings) {
-    throw new Error(`档案「${targetSlug}」的 settings.json 尚未生成。请先在网页端「激活」该档案（需先配置 API 密钥）。`);
+    throw new Error('未生成 settings.json（需已配置并激活一个智能体）。请先在网页端「② 选择智能体」配置，「④ 启动命令行」。');
   }
   const profile = readProfileSafe(dir);
   const executable = RT.executableAt();
@@ -103,7 +108,7 @@ async function cliSession(username, slug) {
       env.ANTHROPIC_API_KEY = '';
     }
     const site = settings._usbaiSite || p?.name || provider;
-    console.log(`\n  Claude Code → ${site} / ${model}\n  智能体: ${settings._usbaiName || ''} · 端点: ${env.ANTHROPIC_BASE_URL}\n  工作对象: ${profile?.name || targetSlug}\n  配置目录: ${dir}（settings.json + CLAUDE.md 已加载）\n`);
+    console.log(`\n  Claude Code → ${site} / ${model}\n  智能体: ${settings._usbaiName || ''} · 端点: ${env.ANTHROPIC_BASE_URL}\n  工作对象: ${profile?.name || targetSlug || '默认(无人设)'}\n  配置目录: ${dir}\n`);
     await RT.run(executable, ['--model', model], { stdio: 'inherit', env, cwd: dir });
   } finally {
     await adapter?.close();

@@ -122,6 +122,35 @@ try {
   assert(r.status === 200 && r.json.simulated === true, 'POST /api/launch ok (simulated)');
   assert(fs.existsSync(path.join(DATA_DIR, 'launch', 'alice-dailyqa.bat')), 'launch script generated');
 
+  // ---- persona re-click cancels selection (no persona) ----
+  r = await req('/api/personas/dailyqa/deactivate', { method: 'POST', body: {} });
+  assert(r.status === 200 && r.json.active === null, 'POST /api/personas/:slug/deactivate ok (re-click cancel)');
+  r = await req('/api/personas');
+  assert(r.json.active === null, 'persona list reflects no active persona');
+
+  // ---- no-persona launch uses the bare (env-only) dir ----
+  r = await req('/api/launch', { method: 'POST', body: { slug: '__active__' } });
+  assert(r.status === 200 && r.json.slug === '__none__' && r.json.simulated === true, 'no-persona launch falls back to bare dir');
+  assert(fs.existsSync(path.join(DATA_DIR, 'users', 'alice', 'bare', 'settings.json')), 'bare settings.json materialized for no-persona launch');
+  // re-activate for the rest
+  r = await req('/api/personas/dailyqa/activate', { method: 'POST', body: {} });
+  assert(r.status === 200 && r.json.active === 'dailyqa', 'persona re-activated');
+
+  // ---- deleting the last persona works even when active ----
+  r = await req('/api/personas', { method: 'POST', body: { name: 'Tmp' } });
+  const tmpSlug = r.json.slug;
+  await req(`/api/personas/${tmpSlug}/activate`, { method: 'POST', body: {} });
+  r = await req(`/api/personas/${tmpSlug}`, { method: 'DELETE' });
+  assert(r.status === 200 && r.json.ok === true, 'deleting an active persona (last one) works');
+  assert(!fs.existsSync(path.join(DATA_DIR, 'users', 'alice', 'personas', tmpSlug)), 'deleted persona dir removed');
+
+  // ---- deleting an active agent works (active falls back) ----
+  r = await req('/api/agents', { method: 'POST', body: { name: 'TempDel', baseUrl: `http://127.0.0.1:${MOCK_PORT}`, apiKey: 'sk-x', model: 'sonnet', transport: 'anthropic' } });
+  const tmpAid = r.json.id;
+  await req(`/api/agents/${tmpAid}/activate`, { method: 'POST', body: {} });
+  r = await req(`/api/agents/${tmpAid}`, { method: 'DELETE' });
+  assert(r.status === 200 && r.json.ok === true, 'deleting an active agent works (active falls back)');
+
   // ---- single account: a second account is rejected; re-login works ----
   r = await req('/api/users', { method: 'POST', body: { username: 'bob', password: PASS } });
   assert(r.status === 400 && r.json.error.includes('仅单账号'), 'second account rejected (single-account)');
