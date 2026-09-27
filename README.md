@@ -28,7 +28,7 @@
 |---|---|
 | 🔐 **单账号** | 首次填账号名+密码即创建（无需确认）；之后同账号+密码登录；不做多账号管理 |
 | 🤖 **智能体（API 配置）** | 一账号多智能体；**手动录入** 或 **拖拽导入 CC Switch 的 settings.json**；密钥 AES-256-GCM 加密 |
-| 🧠 **工作人格** | 只需名称/描述/人设/CLAUDE.md，一套一个工作对象；激活即生成主流 Claude Code `settings.json` |
+| 🧠 **工作人格** | 只需名称/描述/人设/CLAUDE.md，一套一个工作对象；可选（再点已选卡片即取消，无人设直连）；激活即生成主流 Claude Code `settings.json` |
 | 🚀 **命令行对话** | 以当前智能体 + 工作人格在 Claude Code 终端里对话/编码 |
 | 🛡️ **安全** | 仅 127.0.0.1 + Host/Origin 防 DNS 重绑定；本机零持久化；正常退出/拔盘/补清理多级清理 |
 | 🏠 **本地离线** | 便携 Ollama 引擎 + GGUF 模型，断网可用 |
@@ -67,6 +67,7 @@ USB root/
         ├── master.key.enc        # 密码派生 KEK 包裹的主密钥（密文，不可读）
         ├── agents.enc            # 智能体（API 密钥）AES-256-GCM 加密
         ├── prefs.json
+        ├── bare/                 # （可选）无人设会话：仅智能体 env
         └── personas/<slug>/      # 工作人格：persona.json · CLAUDE.md · settings.json
 ```
 
