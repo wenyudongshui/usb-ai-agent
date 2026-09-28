@@ -1,6 +1,6 @@
 # 🔒 usb-ai-agent · U盘私有化AI智能体
 
-> **Private AI agent on USB — portable Claude Code, multi-account, zero host residue.**
+> **Private AI agent on USB — portable Claude Code, single account, zero host residue.**
 > 把官方 Claude Code 装进一只 U 盘：网页是**管理控制台**，对话走 Claude Code；账号/智能体/人格随盘携带，本机零残留。
 
 ![license](https://img.shields.io/badge/license-MIT-blue) ![runtime](https://img.shields.io/badge/runtime-Node.js_24-green) ![deps](https://img.shields.io/badge/dependencies-0-brightgreen)

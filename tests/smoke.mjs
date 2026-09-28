@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // tests/smoke.mjs — end-to-end regression smoke test for the management console
-// (multi-account + engine check/install + API-key import + minimal profiles +
+// (single account + engine check/install + API-key import + minimal profiles +
 // two-mode exit). Exits 0 on success, 1 on any failure.
 import { spawn } from 'node:child_process';
 import http from 'node:http';
@@ -57,7 +57,7 @@ try {
   const usersRes = await fetch(BASE + '/api/users');
   assert(usersRes.headers.get('cache-control') === 'no-store', 'JSON API sends Cache-Control: no-store');
 
-  // ---- multi-account: no users → add alice → login ----
+  // ---- first run: no users → add alice → login ----
   let r = await req('/api/users');
   assert(r.json.needsSetup === true && r.json.users.length === 0, 'GET /api/users empty first-run');
 
