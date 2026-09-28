@@ -92,44 +92,31 @@
     <div class="steptag">3 / 5 · MCP 管理</div>
     <h2>工具层 · AI 自主调用</h2>
     <div class="body">
-      <p class="hint">全部 MCP 能力由 AI 自主判断调用时机，无需手动触发；启用状态与会话进度独立存于
-        <span class="mono">/sessions</span>，与工作人格完全解耦。</p>
-
-      <div class="block-label">系统内置基础 MCP <small>默认自带 · 零配置 · base_ 前缀防重名</small></div>
+      <div class="block-label">系统内置基础 MCP</div>
       <div id="mcpBuiltin"></div>
       <div class="mcp-note">
-        内置规范：统一 <span class="mono">base_</span> 前缀，从根源避免与第三方重名；仅工作于 U 盘本地目录，无系统高危权限；
-        仅由对话指令触发保存 / 加载，无自动保存、无弹窗。会话存档完整记录：当时启用的 MCP 列表 · 模型参数 · 对话上下文 · 人格路径。
+        内置规范：统一 base_ 前缀防重名，仅 U 盘本地运行、无高危权限；仅指令触发读写，会话存档含 MCP、参数、上下文、人格路径。
       </div>
 
-      <div class="block-label">用户第三方 MCP <small>拖拽导入 · 保留原生 Skill 名 · 独立启停</small></div>
+      <div class="block-label">用户第三方 MCP</div>
       <div class="dropzone" id="mcpDropZone">拖入 MCP 服务文件自动识别导入（或点击选择）</div>
       <input type="file" id="mcpFileInput" accept=".json,.js,.mjs,.cjs,.py,.cmd,.bat" multiple class="hidden">
       <div class="form-row mt" style="justify-content:space-between">
-        <span class="hint" style="align-self:center">握手自动读取 Skill 列表并检测重名，仅警告、不拦截</span>
+        <span class="hint" style="align-self:center">检查 skill 列表，握手测试</span>
       </div>
 
       <div id="mcpList"></div>
-      <div class="mcp-note">第三方 MCP 不改名、不修改源码，安全性、兼容性由用户自行负责。</div>
-
-      <div class="conflict-strip">
-        <b>冲突处理（三层）</b>
-        <span>→</span> <span class="mono">base_</span> 前缀隔离
-        <span>→</span> 每个 MCP 独立开关，可随时关闭冲突工具
-        <span>→</span> 握手时自动检测 Skill 重名，仅警告、不拦截
-      </div>
     </div>
   </section>
 
   <!-- ④ 工作人格 -->
   <section class="panel">
     <div class="steptag">4 / 5 · 选择工作人格</div>
-    <h2>工作人格 <span class="muted" style="font-weight:400;font-size:12px">系统设定 · 不参与 MCP 数据</span></h2>
+    <h2>工作人格</h2>
     <div class="body">
       <div class="choose" id="personaList"></div>
       <div class="form-row mt">
         <button class="btn" id="btnNewPersona">＋ 新增</button>
-        <span class="hint" style="align-self:center">每个工作人格一套 settings.json + CLAUDE.md</span>
       </div>
 
       <div id="personaEditor" class="hidden mt">

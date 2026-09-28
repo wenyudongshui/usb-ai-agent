@@ -32,9 +32,14 @@ check('MCP section sits between 智能体 and 工作人格', () => {
 check('MCP markup carries the required ids and copy', () => {
   for (const id of ['mcpBuiltin', 'mcpList', 'mcpDropZone', 'mcpFileInput']) assert.ok(html.includes(`id="${id}"`), `missing #${id}`);
   assert.ok(html.includes('AI 自主调用'), 'missing the AI-autonomy label');
-  assert.ok(html.includes('/sessions'), 'missing the /sessions decoupling note');
-  assert.ok(html.includes('前缀隔离'), 'missing the conflict strip');
-  assert.ok(html.includes('仅警告、不拦截'), 'missing the warn-not-block rule');
+  assert.ok(html.includes('内置规范：统一 base_ 前缀防重名'), 'missing the simplified built-in note');
+  assert.ok(html.includes('检查 skill 列表，握手测试'), 'missing the handshake hint');
+});
+
+check('trimmed copy is gone (per design pass)', () => {
+  for (const gone of ['/sessions', '前缀隔离', '仅警告、不拦截', '冲突处理（三层）', '不参与 MCP 数据', '每个工作人格一套 settings.json + CLAUDE.md', '保留原生 Skill 名', '安全性、兼容性由用户自行负责']) {
+    assert.ok(!html.includes(gone), `stale copy survived: ${gone}`);
+  }
 });
 
 check('MCP section is wired to the API', () => {
@@ -59,9 +64,10 @@ check('step 5 mentions the enabled MCP tools', () => {
 });
 
 check('styles define the new MCP components', () => {
-  for (const cls of ['.empty-state', '.mcp-item', '.conflict-strip', '.switch', '.slider', '.badge.ok', '.block-label']) {
+  for (const cls of ['.empty-state', '.mcp-item', '.switch', '.slider', '.badge.ok', '.block-label']) {
     assert.ok(css.includes(cls), `missing ${cls} in styles.css`);
   }
+  assert.ok(!css.includes('.conflict-strip'), 'dead .conflict-strip styles survived');
 });
 
 console.log(failures ? `\nDASHBOARD TEST: ${failures} failure(s)` : '\nDASHBOARD TEST: ALL PASSED');
