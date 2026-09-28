@@ -35,7 +35,7 @@
 
   <!-- ① 环境检查 -->
   <section class="panel">
-    <div class="steptag">1 / 4 · 环境检查</div>
+    <div class="steptag">1 / 5 · 环境检查</div>
     <h2>Claude Code 引擎 <span id="engineBadge" class="muted"></span></h2>
     <div class="body">
       <div class="form-row">
@@ -55,7 +55,7 @@
 
   <!-- ② 智能体 -->
   <section class="panel">
-    <div class="steptag">2 / 4 · 选择智能体</div>
+    <div class="steptag">2 / 5 · 选择智能体</div>
     <h2>智能体</h2>
     <div class="body">
       <div class="choose" id="agentList"></div>
@@ -87,10 +87,44 @@
     </div>
   </section>
 
-  <!-- ③ 工作人格 -->
+  <!-- ③ MCP 管理 -->
   <section class="panel">
-    <div class="steptag">3 / 4 · 选择工作人格</div>
-    <h2>工作人格</h2>
+    <div class="steptag">3 / 5 · MCP 管理</div>
+    <h2>工具层 · AI 自主调用</h2>
+    <div class="body">
+      <p class="hint">全部 MCP 能力由 AI 自主判断调用时机，无需手动触发；启用状态与会话进度独立存于
+        <span class="mono">/sessions</span>，与工作人格完全解耦。</p>
+
+      <div class="block-label">系统内置基础 MCP <small>默认自带 · 零配置 · base_ 前缀防重名</small></div>
+      <div id="mcpBuiltin"></div>
+      <div class="mcp-note">
+        内置规范：统一 <span class="mono">base_</span> 前缀，从根源避免与第三方重名；仅工作于 U 盘本地目录，无系统高危权限；
+        仅由对话指令触发保存 / 加载，无自动保存、无弹窗。会话存档完整记录：当时启用的 MCP 列表 · 模型参数 · 对话上下文 · 人格路径。
+      </div>
+
+      <div class="block-label">用户第三方 MCP <small>拖拽导入 · 保留原生 Skill 名 · 独立启停</small></div>
+      <div class="dropzone" id="mcpDropZone">拖入 MCP 服务文件自动识别导入（或点击选择）</div>
+      <input type="file" id="mcpFileInput" accept=".json,.js,.mjs,.cjs,.py,.cmd,.bat" multiple class="hidden">
+      <div class="form-row mt" style="justify-content:space-between">
+        <span class="hint" style="align-self:center">握手自动读取 Skill 列表并检测重名，仅警告、不拦截</span>
+      </div>
+
+      <div id="mcpList"></div>
+      <div class="mcp-note">第三方 MCP 不改名、不修改源码，安全性、兼容性由用户自行负责。</div>
+
+      <div class="conflict-strip">
+        <b>冲突处理（三层）</b>
+        <span>→</span> <span class="mono">base_</span> 前缀隔离
+        <span>→</span> 每个 MCP 独立开关，可随时关闭冲突工具
+        <span>→</span> 握手时自动检测 Skill 重名，仅警告、不拦截
+      </div>
+    </div>
+  </section>
+
+  <!-- ④ 工作人格 -->
+  <section class="panel">
+    <div class="steptag">4 / 5 · 选择工作人格</div>
+    <h2>工作人格 <span class="muted" style="font-weight:400;font-size:12px">系统设定 · 不参与 MCP 数据</span></h2>
     <div class="body">
       <div class="choose" id="personaList"></div>
       <div class="form-row mt">
@@ -119,12 +153,12 @@
     </div>
   </section>
 
-  <!-- ④ 命令行 -->
+  <!-- ⑤ 命令行 -->
   <section class="panel">
-    <div class="steptag">4 / 4 · 命令行</div>
+    <div class="steptag">5 / 5 · 命令行</div>
     <h2>启动 Claude Code 终端</h2>
     <div class="body">
-      <p class="hint">以当前智能体 + 工作人格，在终端里开始对话 / 编码。</p>
+      <p class="hint">以当前智能体 + 工作人格 + 已启用的 MCP 工具，在终端里开始对话 / 编码。</p>
       <div class="form-row">
         <button class="btn" id="btnLaunch">🚀 命令行对话</button>
         <span id="launchMsg" class="hint" style="align-self:center"></span>
@@ -160,7 +194,9 @@
 
 <script>
 const $ = (id) => document.getElementById(id);
-const state = { agents: [], personas: [], username: null };
+const state = { agents: [], personas: [], mcp: { builtin: [], servers: [] }, username: null };
+// esc(): server names/args come from imported files — never interpolate raw
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
 async function jget(url) { const r = await fetch(url); return { r, j: await r.json().catch(() => ({})) }; }
 async function postJSON(url, body, method = 'POST') {
@@ -238,9 +274,15 @@ async function loadAgents() {
   state.agents = j.configs || [];
   renderAgents();
 }
-function renderAgents() {
+  function renderAgents() {
   const box = $('agentList'); box.innerHTML = '';
-  if (!state.agents.length) { box.innerHTML = '<div class="hint">（暂无智能体）</div>'; return; }
+  if (!state.agents.length) {
+    box.innerHTML = `<div class="empty-state">
+      <div class="empty-title">暂无已导入的智能体配置</div>
+      <div class="empty-sub">导入后，配置将显示在这里，可进行测试 / 删除</div>
+    </div>`;
+    return;
+  }
   for (const a of state.agents) {
     const el = document.createElement('div');
     el.className = 'choose-item' + (a.active ? ' sel' : '');
@@ -283,7 +325,90 @@ async function importFile(file) {
   loadAgents();
 }
 
-// ============ ③ 工作人格 ============
+// ============ ③ MCP 管理 ============
+async function loadMcp() {
+  const { j } = await jget('/api/mcp');
+  state.mcp = { builtin: j.builtin || [], servers: j.servers || [] };
+  renderMcp();
+}
+function mcpItem({ id, name, desc, enabled, builtin, tools, lastError }) {
+  const skills = (tools || []).length
+    ? `<div class="mcp-desc">Skills：<span class="mono">${tools.map(esc).join('</span> · <span class="mono">')}</span></div>`
+    : '';
+  const err = lastError ? `<div class="mcp-desc" style="color:#c43d3d">上次握手失败：${esc(lastError)}</div>` : '';
+  return `<div class="mcp-item" data-id="${esc(id)}">
+    <div class="mcp-info">
+      <div class="mcp-name"><span class="mono">${esc(name)}</span>
+        ${builtin ? '<span class="badge">内置</span>' : '<span class="badge blue">第三方</span>'}
+        <span class="badge ${enabled ? 'ok' : 'off'}" data-st>${enabled ? '已启用' : '已停用'}</span>
+      </div>
+      <div class="mcp-desc">${esc(desc || '')}</div>${skills}${err}
+    </div>
+    <div class="mcp-actions">
+      <button class="btn ghost small" data-role="test">测试连接</button>
+      ${builtin ? '' : '<button class="btn danger small" data-role="del">删除</button>'}
+      <label class="switch"><input type="checkbox" data-sw ${enabled ? 'checked' : ''}><span class="slider"></span></label>
+    </div>
+  </div>`;
+}
+function renderMcp() {
+  $('mcpBuiltin').innerHTML = state.mcp.builtin.map((b) => mcpItem({ ...b, id: b.id, builtin: true })).join('');
+  const box = $('mcpList');
+  box.innerHTML = state.mcp.servers.length
+    ? state.mcp.servers.map((s) => mcpItem({ ...s, builtin: false, desc: `${s.command} ${(s.args || []).join(' ')}` })).join('')
+    : `<div class="empty-state">
+         <div class="empty-title">暂无第三方 MCP</div>
+         <div class="empty-sub">拖入 MCP 服务文件并点击「测试连接」握手后，将自动读取 Skill 列表并显示在这里</div>
+       </div>`;
+
+  for (const el of [...$('mcpBuiltin').children, ...box.children]) {
+    if (!el.dataset.id) continue;
+    const id = el.dataset.id;
+    el.querySelector('[data-sw]')?.addEventListener('change', async (e) => {
+      const enabled = e.target.checked;
+      const { j } = await postJSON(`/api/mcp/${encodeURIComponent(id)}/toggle`, { enabled });
+      if (!j.ok) { toast(j.error || '切换失败'); e.target.checked = !enabled; return; }
+      const st = el.querySelector('[data-st]');
+      st.textContent = enabled ? '已启用' : '已停用';
+      st.className = `badge ${enabled ? 'ok' : 'off'}`;
+      toast(enabled ? '已启用（下次启动生效）' : '已停用（下次启动生效）');
+    });
+    el.querySelector('[data-role="test"]')?.addEventListener('click', async (e) => {
+      const btn = e.currentTarget; const old = btn.textContent;
+      btn.textContent = '握手…'; btn.disabled = true;
+      const { j } = await postJSON(`/api/mcp/${encodeURIComponent(id)}/test`, {});
+      btn.textContent = old; btn.disabled = false;
+      if (!j.ok) { toast(j.error || '握手失败'); loadMcp(); return; }
+      const c = (j.conflicts || []).length;
+      toast(c ? `握手成功：${j.tools.length} 个 Skill，检测到 ${c} 处重名（不拦截）` : `握手成功：${j.tools.length} 个 Skill，无重名`);
+      loadMcp();
+    });
+    el.querySelector('[data-role="del"]')?.addEventListener('click', (e) => {
+      twoStepDel(e.currentTarget, '删除', async () => {
+        const { j } = await postJSON(`/api/mcp/${encodeURIComponent(id)}`, {}, 'DELETE');
+        toast(j.ok ? '已删除' : (j.error || '删除失败')); loadMcp();
+      });
+    });
+  }
+}
+async function importMcpFiles(files) {
+  for (const f of files) {
+    const text = await f.text();
+    // a dropped .js/.py service file is not JSON — send the name so the server
+    // can recognise it as a script instead of failing to parse
+    const { j } = await postJSON('/api/mcp/import', { content: text, fileName: f.name });
+    toast(j.ok ? `已导入 ${j.ids?.length || 0} 个 MCP：${f.name}` : `${f.name}：${j.error || '导入失败'}`);
+  }
+  loadMcp();
+}
+const mdz = $('mcpDropZone');
+mdz.addEventListener('click', () => $('mcpFileInput').click());
+$('mcpFileInput').addEventListener('change', (e) => { const f = [...e.target.files]; if (f.length) importMcpFiles(f); e.target.value = ''; });
+['dragover', 'dragenter'].forEach((ev) => mdz.addEventListener(ev, (e) => { e.preventDefault(); mdz.classList.add('over'); }));
+['dragleave', 'drop'].forEach((ev) => mdz.addEventListener(ev, (e) => { e.preventDefault(); mdz.classList.remove('over'); }));
+mdz.addEventListener('drop', (e) => { const f = [...(e.dataTransfer?.files || [])]; if (f.length) importMcpFiles(f); });
+
+// ============ ④ 工作人格 ============
 async function loadPersonas() {
   const { j } = await jget('/api/personas');
   state.personas = j.personas || [];
@@ -291,7 +416,13 @@ async function loadPersonas() {
 }
 function renderPersonas() {
   const box = $('personaList'); box.innerHTML = '';
-  if (!state.personas.length) { box.innerHTML = '<div class="hint">（暂无工作人格）</div>'; return; }
+  if (!state.personas.length) {
+    box.innerHTML = `<div class="empty-state">
+      <div class="empty-title">暂无工作人格</div>
+      <div class="empty-sub">创建后，人格将显示在这里，可设为当前 / 编辑 / 删除</div>
+    </div>`;
+    return;
+  }
   for (const p of state.personas) {
     const el = document.createElement('div');
     el.className = 'choose-item' + (p.active ? ' sel' : '');
@@ -353,7 +484,7 @@ function wireDrop(target, textareaId) {
 }
 wireDrop('claude', 'e_claude');
 
-// ============ ④ 运行模式 ============
+// ============ ⑤ 运行模式 ============
 $('btnLaunch').addEventListener('click', async () => {
   const msg = $('launchMsg'); msg.textContent = '启动中…';
   const { j } = await postJSON('/api/launch', { slug: '__active__' });
@@ -391,7 +522,7 @@ $('btnPwdOk').addEventListener('click', async () => {
 // ============ init ============
 (async () => {
   if (!(await guard())) return;
-  await Promise.all([loadAgents(), loadPersonas(), loadSystem()]);
+  await Promise.all([loadAgents(), loadMcp(), loadPersonas(), loadSystem()]);
   await checkEngine();
   setInterval(() => { jget('/api/engine/check').then(({ j }) => { $('engineBadge').textContent = j.installed ? `v${j.version}` : '未安装'; }); }, 6000);
 })();
